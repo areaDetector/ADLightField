@@ -12,9 +12,9 @@ epicsEnvSet("XSIZE",  "1396")
 epicsEnvSet("YSIZE",  "1040")
 epicsEnvSet("NCHANS", "2048")
 
-LightFieldConfig("$(PORT)", 50, 200000000)
+LightFieldConfig("$(PORT)", "Experiment2", 50, 200000000)
 asynSetTraceIOMask("$(PORT)",0,2)
-asynSetTraceMask("$(PORT)",0,9)
+#asynSetTraceMask("$(PORT)",0,255)
 dbLoadRecords("$(AREA_DETECTOR)/ADApp/Db/ADBase.template",   "P=$(PREFIX),R=cam1:,PORT=$(PORT),ADDR=0,TIMEOUT=1")
 dbLoadRecords("$(AREA_DETECTOR)/ADApp/Db/NDFile.template",   "P=$(PREFIX),R=cam1:,PORT=$(PORT),ADDR=0,TIMEOUT=1")
 
