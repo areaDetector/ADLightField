@@ -46,8 +46,6 @@ using namespace PrincetonInstruments::LightField::AddIns;
 
 static const char *driverName = "LightField";
 
-static int acquisitionComplete;
-
 typedef enum {
     LightFieldImageNormal,
     LightFieldImagePreview
@@ -60,13 +58,14 @@ typedef enum {
 /** Driver for Princeton Instruments cameras using the LightField Automation software */
 class LightField : public ADDriver {
 public:
-    LightField(const char *portName,
+    LightField(const char *portName, const char *experimentName,
                int maxBuffers, size_t maxMemory,
                int priority, int stackSize);
                  
     /* These are the methods that we override from ADDriver */
     virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
     virtual asynStatus writeFloat64(asynUser *pasynUser, epicsFloat64 value);
+    virtual asynStatus writeOctet(asynUser *pasynUser, const char *value, size_t nChars, size_t *nActual);
     virtual void setShutter(int open);
     virtual void report(FILE *fp, int details);
     void LightFieldTask();  /* This should be private but is called from C, must be public */
@@ -87,6 +86,9 @@ private:
     asynStatus convertDataType(NDDataType_t NDArrayType, int *LightFieldType);
     asynStatus saveFile();
     
+    //bool acquisitionComplete_;
+    //void completionEventHandler(System::Object^ sender, 
+     //                          ExperimentCompletedEventArgs^ args);
     /* Our data */
     epicsEventId startEventId;
     epicsEventId stopEventId;
@@ -96,12 +98,10 @@ private:
 
 #define NUM_LIGHTFIELD_PARAMS ((int)(&LAST_LIGHTFIELD_PARAM - &FIRST_LIGHTFIELD_PARAM + 1))
 
-void ExperimentCompletedEventHandler(System::Object^ sender, 
-                                     PrincetonInstruments::LightField::AddIns::ExperimentCompletedEventArgs^ args)
+static bool acquisitionComplete_;
+void completionEventHandler(System::Object^ sender, ExperimentCompletedEventArgs^ args)
 {
-    printf("ExperimentCompletedEventHandler entry\n");
-    acquisitionComplete = 1;
-    printf("ExperimentCompletedEventHandler exit\n");
+    acquisitionComplete_ = true;
 }
 
 asynStatus LightField::saveFile()
@@ -131,7 +131,6 @@ asynStatus LightField::getStatus()
 asynStatus LightField::setROI()
 {
     int minX, minY, sizeX, sizeY, binX, binY, maxSizeX, maxSizeY;
-    double ROILeft, ROIRight, ROITop, ROIBottom;
     asynStatus status;
     const char *functionName = "setROI";
 
@@ -152,12 +151,12 @@ asynStatus LightField::setROI()
         binY = 1;
         status = setIntegerParam(ADBinY, binY);
     }
-    if (minX < 1) {
-        minX = 1; 
+    if (minX < 0) {
+        minX = 0; 
         status = setIntegerParam(ADMinX, minX);
     }
-    if (minY < 1) {
-        minY = 1; 
+    if (minY < 0) {
+        minY = 0; 
         status = setIntegerParam(ADMinY, minY);
     }
     if (minX > maxSizeX-binX) {
@@ -172,15 +171,20 @@ asynStatus LightField::setROI()
     if (sizeY < binY) sizeY = binY;    
     if (minX+sizeX-1 > maxSizeX) sizeX = maxSizeX-minX+1; 
     if (minY+sizeY-1 > maxSizeY) sizeY = maxSizeY-minY+1; 
-    /* The size must be a multiple of the binning or the controller can generate an error */
     sizeX = (sizeX/binX) * binX;
     sizeY = (sizeY/binY) * binY;
     status = setIntegerParam(ADSizeX, sizeX);
     status = setIntegerParam(ADSizeY, sizeY);
-    ROILeft = minX;
-    ROIRight = minX + sizeX - 1;
-    ROITop = minY;
-    ROIBottom = minY + sizeY - 1;
+    RegionOfInterest^ roi = gcnew RegionOfInterest(minX, minY, sizeX, sizeY, binX, binY);
+
+    // Create an array that can contain many regions (simple example 1)
+    array<RegionOfInterest>^ rois = gcnew array<RegionOfInterest>(1);
+
+    // Fill in the array element(s)
+    rois[0] = *roi;
+
+    // Set the custom regions
+    Experiment_->SetCustomRegions(rois);  
     
     return(asynSuccess);
 }
@@ -221,9 +225,6 @@ void LightField::LightFieldTask()
     epicsTimeStamp startTime, endTime;
     double elapsedTime;
     const char *functionName = "LightFieldTask";
-    VARIANT varArg;
-    IDispatch *pDocFileDispatch;
-    HRESULT hr;
 
     this->lock();
     /* Loop forever */
@@ -267,6 +268,7 @@ void LightField::LightFieldTask()
         /* Stop current exposure, if any */
 
         // Start acquisition 
+        acquisitionComplete_ = false;
         Experiment_->Acquire();
 
         /* Wait for acquisition to complete, but allow acquire stop events to be handled */
@@ -279,7 +281,7 @@ void LightField::LightFieldTask()
                 Experiment_->Stop();
                 acquire = 0;
             } else {
-                acquire = !acquisitionComplete;
+                acquire = !acquisitionComplete_;
             }
             if (!acquire) {
                 /* Close the shutter */
@@ -365,15 +367,9 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
     int dataType;
     int LightFieldDataType;
     asynStatus status = asynSuccess;
-    VARIANT varArg;
     int needReadStatus=1;
     const char* functionName="writeInt32";
 
-    /* Initialize the variant and set reasonable defaults for data type and value */
-    VariantInit(&varArg);
-    varArg.vt = VT_I4;
-    varArg.lVal = value;
-    
     /* See if we are currently acquiring.  This must be done before the call to setIntegerParam below */
     getIntegerParam(ADAcquire, &currentlyAcquiring);
     
@@ -402,7 +398,13 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
             this->setROI();
         } else if (function == NDDataType) {
         } else if (function == ADNumImages) {
+            if (Experiment_->Exists(ExperimentSettings::AcquisitionFramesToStore) &&
+                Experiment_->IsValid(ExperimentSettings::AcquisitionFramesToStore, value))
+                Experiment_->SetValue(ExperimentSettings::AcquisitionFramesToStore, value);
         } else if (function == ADNumExposures) {
+            if (Experiment_->Exists(CameraSettings::ReadoutControlAccumulations) &&
+                Experiment_->IsValid(CameraSettings::ReadoutControlAccumulations, value))
+                Experiment_->SetValue(CameraSettings::ReadoutControlAccumulations, value);
         } else if (function == ADReverseX) {
         } else if (function == ADReverseY) {
         } else if (function == NDWriteFile) {
@@ -417,7 +419,6 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
             if (value == 0) { /* Not auto data type, re-send data type */
                 getIntegerParam(NDDataType, &dataType);
                 convertDataType((NDDataType_t)dataType, &LightFieldDataType);
-                varArg.lVal = LightFieldDataType;
             }
         } else {
             needReadStatus = 0;
@@ -425,12 +426,10 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
             if (function < FIRST_LIGHTFIELD_PARAM) status = ADDriver::writeInt32(pasynUser, value);
         }
     }
-    catch(CException *pEx) {
-        pEx->GetErrorMessage(this->errorMessage, sizeof(this->errorMessage));
+    catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: exception = %s\n", 
-            driverName, functionName, this->errorMessage);
-        pEx->Delete();
+            "%s:%s: function=%d, value=%d, exception = %s\n", 
+            driverName, functionName, function, value, pEx->ToString());
         status = asynError;
     }
     
@@ -461,14 +460,8 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
 {
     int function = pasynUser->reason;
     asynStatus status = asynSuccess;
-    VARIANT varArg;
     int needReadStatus=1;
-    const char* functionName="writeInt32";
-
-    /* Initialize the variant and set reasonable defaults for data type and value */
-    VariantInit(&varArg);
-    varArg.vt = VT_R4;
-    varArg.fltVal = (epicsFloat32)value;
+    const char* functionName="writeFloat64";
 
     /* Set the parameter and readback in the parameter library.  This may be overwritten when we read back the
      * status at the end, but that's OK */
@@ -477,23 +470,33 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
     /* Changing any of the following parameters requires recomputing the base image */
     try {
         if (function == ADAcquireTime) {
-            Experiment_->SetValue(CameraSettings::ShutterTimingExposureTime, value);
+        if (Experiment_->Exists(CameraSettings::ShutterTimingExposureTime) &&
+            Experiment_->IsValid(CameraSettings::ShutterTimingExposureTime, value*1000.))
+                // LightField units are ms 
+                Experiment_->SetValue(CameraSettings::ShutterTimingExposureTime, value*1000.);
         } else if (function == ADTemperature) {
+            if (Experiment_->Exists(CameraSettings::SensorTemperatureSetPoint) &&
+                Experiment_->IsValid(CameraSettings::SensorTemperatureSetPoint, value))
+                Experiment_->SetValue(CameraSettings::SensorTemperatureSetPoint, value);
         } else if (function == ADGain) {
-            varArg.vt = VT_I4;
-            varArg.lVal = (int)value;
+            PrincetonInstruments::LightField::AddIns::AdcGain gain;
+            if (value <= 1.5)      gain = AdcGain::Low;
+            else if (value <= 2.5) gain = AdcGain::Medium;
+            else                   gain = AdcGain::High;
+            if (Experiment_->Exists(CameraSettings::AdcAnalogGain) &&
+                Experiment_->IsValid(CameraSettings::AdcAnalogGain, gain))
+                Experiment_->SetValue(CameraSettings::AdcAnalogGain, gain);
         } else {
             needReadStatus = 0;
             /* If this parameter belongs to a base class call its method */
             if (function < FIRST_LIGHTFIELD_PARAM) status = ADDriver::writeFloat64(pasynUser, value);
         }
     }
-    catch(CException *pEx) {
-        pEx->GetErrorMessage(this->errorMessage, sizeof(this->errorMessage));
+    catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: exception = %s\n", 
-            driverName, functionName, this->errorMessage);
-        pEx->Delete();
+            "%s:%s: function=%d, value=%f, exception = %s\n", 
+            driverName, functionName, function, value, pEx->ToString());
+        status = asynError;
     }
 
     /* Read the actual state of the detector after this operation */
@@ -511,6 +514,51 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
               driverName, functionName, function, value);
     return status;
 }
+
+
+ /** Called when asyn clients call pasynOctet->write().
+  * This function performs actions for some parameters, including ADFilePath, etc.
+  * For all parameters it sets the value in the parameter library and calls any registered callbacks..
+  * \param[in] pasynUser pasynUser structure that encodes the reason and address.
+  * \param[in] value Address of the string to write.
+  * \param[in] nChars Number of characters to write.
+  * \param[out] nActual Number of characters actually written. */
+asynStatus LightField::writeOctet(asynUser *pasynUser, const char *value, 
+                                    size_t nChars, size_t *nActual)
+{
+    int function = pasynUser->reason;
+    asynStatus status = asynSuccess;
+    const char *functionName = "writeOctet";
+
+    /* Set the parameter in the parameter library. */
+    status = (asynStatus)setStringParam(function, (char *)value);
+
+    if (function == NDFilePath) {
+        // Set the file path value
+        Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (value));    
+    } else if (function == NDFileName) {
+        // Set the Base file name value
+        Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (value));    
+    } else {
+        /* If this parameter belongs to a base class call its method */
+        if (function < FIRST_LIGHTFIELD_PARAM) status = ADDriver::writeOctet(pasynUser, value, nChars, nActual);
+    }
+    
+     /* Do callbacks so higher layers see any changes */
+    status = (asynStatus)callParamCallbacks();
+
+    if (status) 
+        epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize, 
+                  "%s:%s: status=%d, function=%d, value=%s", 
+                  driverName, functionName, status, function, value);
+    else        
+        asynPrint(pasynUser, ASYN_TRACEIO_DRIVER, 
+              "%s:%s: function=%d, value=%s\n", 
+              driverName, functionName, function, value);
+    *nActual = nChars;
+    return status;
+}
+
 
 
 /** Report status of the driver.
@@ -535,11 +583,11 @@ void LightField::report(FILE *fp, int details)
     ADDriver::report(fp, details);
 }
 
-extern "C" int LightFieldConfig(const char *portName,
+extern "C" int LightFieldConfig(const char *portName, const char *experimentName,
                            int maxBuffers, size_t maxMemory,
                            int priority, int stackSize)
 {
-    new LightField(portName, maxBuffers, maxMemory, priority, stackSize);
+    new LightField(portName, experimentName, maxBuffers, maxMemory, priority, stackSize);
     return(asynSuccess);
 }
 
@@ -555,7 +603,7 @@ extern "C" int LightFieldConfig(const char *portName,
   * \param[in] priority The thread priority for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
   * \param[in] stackSize The stack size for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
   */
-LightField::LightField(const char *portName,
+LightField::LightField(const char *portName, const char* experimentName,
              int maxBuffers, size_t maxMemory,
              int priority, int stackSize)
 
@@ -567,9 +615,8 @@ LightField::LightField(const char *portName,
 {
     int status = asynSuccess;
     const char *functionName = "LightField";
-    const char *controllerName;
-    int controllerNum;
-    IDispatch *pDocFileDispatch;
+
+    acquisitionComplete_ = true;
 
     createParam(LightFieldNumAcquisitionsString,        asynParamInt32,   &LightFieldNumAcquisitions);
     createParam(LightFieldNumAcquisitionsCounterString, asynParamInt32,   &LightFieldNumAcquisitionsCounter);
@@ -597,17 +644,19 @@ LightField::LightField(const char *portName,
     }
     
     // options can include a list of files to open when launching LightField
-    printf("LFTest1, creating list\n");
     List<String^>^ options = gcnew List<String^>();
-    printf("LFTest1, creating automation\n");
     Automation_ = gcnew PrincetonInstruments::LightField::Automation::Automation(true, options);   
 
     // Get the application interface from the automation
-    printf("LFTest1, getting application\n");
  	  Application_ = Automation_->LightFieldApplication;
 
     // Get the experiment interface from the application
     Experiment_  = Application_->Experiment;
+    
+    // Open the user-specified experiment, if any
+    if (experimentName && strlen(experimentName) > 0) {
+        Experiment_->Load(gcnew String (experimentName));
+    }
 
     // Tell the application to suppress prompts (overwrite file names, etc...)
     Application_->UserInteractionManager->SuppressUserInteraction = true;
@@ -620,14 +669,13 @@ LightField::LightField(const char *portName,
     List<PrincetonInstruments::LightField::AddIns::IDevice^> experimentList = Experiment_->ExperimentDevices;        
     for each(IDevice^% device in experimentList)
     {
-        if (device->Type == PrincetonInstruments::LightField::AddIns::DeviceType::Camera)
+        if (device->Type == DeviceType::Camera)
         {
             // Cache the name
             cameraName = device->Model;
             
             // Break loop on finding camera
             bCameraFound = true;
-            printf("LFTest1, found camera %s\n", cameraName);
             break;
         }
     }
@@ -640,15 +688,11 @@ LightField::LightField(const char *portName,
     }
 
     /* Set some default values for parameters */
-    // Get The Full Size
-    RegionOfInterest full = Experiment_->FullSensorRegion;
+    int width = safe_cast<int>(Experiment_->GetValue(CameraSettings::SensorInformationActiveAreaWidth));
+    int height = safe_cast<int>(Experiment_->GetValue(CameraSettings::SensorInformationActiveAreaHeight));
 
-    // Print out the ROI information
-    printf("X=%d, Width=%d, XBinning=%d, Y=%d, Height=%d, YBinning=%d\n",
-      full.X, full.Width, full.XBinning, full.Y, full.Height, full.YBinning);
-
-    setIntegerParam(ADMaxSizeX, full.Width);
-    setIntegerParam(ADMaxSizeY, full.Height);
+    setIntegerParam(ADMaxSizeX, width);
+    setIntegerParam(ADMaxSizeY, height);
     status =  setStringParam (ADManufacturer, "Princeton Instruments");
     status |= setStringParam (ADModel, cameraName);
     status |= setIntegerParam(ADImageMode, ADImageSingle);
@@ -662,6 +706,15 @@ LightField::LightField(const char *portName,
         return;
     }
     
+    // Connect the acquisition event handler       
+    Experiment_->ExperimentCompleted += gcnew 
+        System::EventHandler<ExperimentCompletedEventArgs^>(&completionEventHandler);
+
+    // Don't Automatically Attach Date/Time to the file name
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationAttachDate, false);
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationAttachTime, false);
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationAttachIncrement, false);
+
     /* Create the thread that updates the images */
     status = (epicsThreadCreate("LightFieldTask",
                                 epicsThreadPriorityMedium,
@@ -677,20 +730,22 @@ LightField::LightField(const char *portName,
 
 /* Code for iocsh registration */
 static const iocshArg LightFieldConfigArg0 = {"Port name", iocshArgString};
-static const iocshArg LightFieldConfigArg1 = {"maxBuffers", iocshArgInt};
-static const iocshArg LightFieldConfigArg2 = {"maxMemory", iocshArgInt};
-static const iocshArg LightFieldConfigArg3 = {"priority", iocshArgInt};
-static const iocshArg LightFieldConfigArg4 = {"stackSize", iocshArgInt};
+static const iocshArg LightFieldConfigArg1 = {"Experiment name", iocshArgString};
+static const iocshArg LightFieldConfigArg2 = {"maxBuffers", iocshArgInt};
+static const iocshArg LightFieldConfigArg3 = {"maxMemory", iocshArgInt};
+static const iocshArg LightFieldConfigArg4 = {"priority", iocshArgInt};
+static const iocshArg LightFieldConfigArg5 = {"stackSize", iocshArgInt};
 static const iocshArg * const LightFieldConfigArgs[] =  {&LightFieldConfigArg0,
-                                                    &LightFieldConfigArg1,
-                                                    &LightFieldConfigArg2,
-                                                    &LightFieldConfigArg3,
-                                                    &LightFieldConfigArg4};
-static const iocshFuncDef configLightField = {"LightFieldConfig", 5, LightFieldConfigArgs};
+                                                         &LightFieldConfigArg1,
+                                                         &LightFieldConfigArg2,
+                                                         &LightFieldConfigArg3,
+                                                         &LightFieldConfigArg4,
+                                                         &LightFieldConfigArg5};
+static const iocshFuncDef configLightField = {"LightFieldConfig", 6, LightFieldConfigArgs};
 static void configLightFieldCallFunc(const iocshArgBuf *args)
 {
-    LightFieldConfig(args[0].sval, args[1].ival, args[2].ival,
-                args[3].ival, args[4].ival);
+    LightFieldConfig(args[0].sval, args[1].sval, args[2].ival,
+                args[3].ival, args[4].ival, args[5].ival);
 }
 
 
