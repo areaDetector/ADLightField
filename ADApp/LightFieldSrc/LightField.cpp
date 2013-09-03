@@ -65,10 +65,10 @@ public:
     /* These are the methods that we override from ADDriver */
     virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
     virtual asynStatus writeFloat64(asynUser *pasynUser, epicsFloat64 value);
-    virtual asynStatus writeOctet(asynUser *pasynUser, const char *value, size_t nChars, size_t *nActual);
     virtual void setShutter(int open);
     virtual void report(FILE *fp, int details);
-    void LightFieldTask();  /* This should be private but is called from C, must be public */
+    void LightFieldTask();     /* This should be private but is called from C, must be public */
+    void setAcquisitionComplete(bool complete);
 
 protected:
     int LightFieldNumAcquisitions;
@@ -86,22 +86,45 @@ private:
     asynStatus convertDataType(NDDataType_t NDArrayType, int *LightFieldType);
     asynStatus saveFile();
     
-    //bool acquisitionComplete_;
-    //void completionEventHandler(System::Object^ sender, 
-     //                          ExperimentCompletedEventArgs^ args);
     /* Our data */
+    bool acquisitionComplete_;
     epicsEventId startEventId;
     epicsEventId stopEventId;
     char errorMessage[ERROR_MESSAGE_SIZE];
 };
 
+// We use a static variable to hold a pointer to the LightField driver object
+// This is OK because we can only have a single driver object per IOC
+// We need this because it is difficult (impossible?) to pass the object pointer
+// to the LightField object in their callback functions
+static LightField *LightField_;
 
 #define NUM_LIGHTFIELD_PARAMS ((int)(&LAST_LIGHTFIELD_PARAM - &FIRST_LIGHTFIELD_PARAM + 1))
 
-static bool acquisitionComplete_;
 void completionEventHandler(System::Object^ sender, ExperimentCompletedEventArgs^ args)
 {
-    acquisitionComplete_ = true;
+    LightField_->setAcquisitionComplete(true);
+}
+
+void imageDataEventHandler(System::Object^ sender, ImageDataSetReceivedEventArgs^ args)
+{
+    IImageDataSet^ dataSet = args->ImageDataSet;
+    IImageData^ data = dataSet->GetFrame(0, 0); 
+    printf("Image Data Set Received, Format=%d, Height=%d, Width=%d\n", data->Format, data->Height, data->Width);
+    System::Array^ arr = data->GetData();
+    printf("Image Data Set Received, Length=%d, Type=%d\n", arr->Length, arr->GetType());
+    int numBytes = arr->Length * sizeof(epicsInt16);
+    epicsInt16 *carray = (epicsInt16 *)malloc(numBytes);
+    pin_ptr<int> pptr = &arr[0];
+    memcpy(carray, pptr, numBytes);
+    printf("carray[0] = %d\n", carray[0]);
+}
+
+void LightField::setAcquisitionComplete(bool complete)
+{
+    lock();
+    acquisitionComplete_ = complete;
+    unlock();
 }
 
 asynStatus LightField::saveFile()
@@ -220,10 +243,12 @@ void LightField::LightFieldTask()
     int imageMode;
     int arrayCallbacks;
     int acquire, autoSave;
+    size_t len;
     NDArray *pImage;
     double acquireTime, acquirePeriod, delay;
     epicsTimeStamp startTime, endTime;
     double elapsedTime;
+    char filePath[MAX_FILENAME_LEN], fileName[MAX_FILENAME_LEN];
     const char *functionName = "LightFieldTask";
 
     this->lock();
@@ -263,13 +288,22 @@ void LightField::LightFieldTask()
 
         /* Call the callbacks to update any changes */
         callParamCallbacks();
-
-        /* Collect the frame(s) */
-        /* Stop current exposure, if any */
+        
+        /* Set the file name and path */
+        createFileName(MAX_FILENAME_LEN, filePath, fileName);
+        // Remove trailing \ or / because LightField won't accept it
+        len = strlen(filePath);
+        if (len > 0) filePath[len-1] = 0;        
+        Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));    
+        Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));    
 
         // Start acquisition 
         acquisitionComplete_ = false;
-        Experiment_->Acquire();
+        if (imageMode == ADImageContinuous) {
+            Experiment_->Preview();
+        } else {
+            Experiment_->Acquire();
+        }
 
         /* Wait for acquisition to complete, but allow acquire stop events to be handled */
         while (1) {
@@ -406,13 +440,22 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 Experiment_->IsValid(CameraSettings::ReadoutControlAccumulations, value))
                 Experiment_->SetValue(CameraSettings::ReadoutControlAccumulations, value);
         } else if (function == ADReverseX) {
+            if (Experiment_->Exists(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally) &&
+                Experiment_->IsValid(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, value))
+                Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, value);
         } else if (function == ADReverseY) {
-        } else if (function == NDWriteFile) {
-            /* Call the callbacks so the busy state is visible while file is being saved */
-            callParamCallbacks();
-            status = this->saveFile();
-            setIntegerParam(NDWriteFile, 0);
+            if (Experiment_->Exists(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically) &&
+                Experiment_->IsValid(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically, value))
+                Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically, value);
         } else if (function == ADTriggerMode) {
+            PrincetonInstruments::LightField::AddIns::TriggerSource trigger;            
+            if (value == ADTriggerInternal) 
+                trigger = TriggerSource::Internal;
+            else 
+                trigger = TriggerSource::External;
+            if (Experiment_->Exists(CameraSettings::HardwareIOTriggerSource) &&
+                Experiment_->IsValid(CameraSettings::HardwareIOTriggerSource, trigger))
+                Experiment_->SetValue(CameraSettings::HardwareIOTriggerSource, trigger);
         } else if (function == ADShutterMode) {
         } else if (function == NDDataType) {
             getIntegerParam(NDDataType, &dataType);
@@ -512,50 +555,6 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
         asynPrint(pasynUser, ASYN_TRACEIO_DRIVER, 
               "%s:%s: function=%d, value=%f\n", 
               driverName, functionName, function, value);
-    return status;
-}
-
-
- /** Called when asyn clients call pasynOctet->write().
-  * This function performs actions for some parameters, including ADFilePath, etc.
-  * For all parameters it sets the value in the parameter library and calls any registered callbacks..
-  * \param[in] pasynUser pasynUser structure that encodes the reason and address.
-  * \param[in] value Address of the string to write.
-  * \param[in] nChars Number of characters to write.
-  * \param[out] nActual Number of characters actually written. */
-asynStatus LightField::writeOctet(asynUser *pasynUser, const char *value, 
-                                    size_t nChars, size_t *nActual)
-{
-    int function = pasynUser->reason;
-    asynStatus status = asynSuccess;
-    const char *functionName = "writeOctet";
-
-    /* Set the parameter in the parameter library. */
-    status = (asynStatus)setStringParam(function, (char *)value);
-
-    if (function == NDFilePath) {
-        // Set the file path value
-        Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (value));    
-    } else if (function == NDFileName) {
-        // Set the Base file name value
-        Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (value));    
-    } else {
-        /* If this parameter belongs to a base class call its method */
-        if (function < FIRST_LIGHTFIELD_PARAM) status = ADDriver::writeOctet(pasynUser, value, nChars, nActual);
-    }
-    
-     /* Do callbacks so higher layers see any changes */
-    status = (asynStatus)callParamCallbacks();
-
-    if (status) 
-        epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize, 
-                  "%s:%s: status=%d, function=%d, value=%s", 
-                  driverName, functionName, status, function, value);
-    else        
-        asynPrint(pasynUser, ASYN_TRACEIO_DRIVER, 
-              "%s:%s: function=%d, value=%s\n", 
-              driverName, functionName, function, value);
-    *nActual = nChars;
     return status;
 }
 
@@ -710,6 +709,15 @@ LightField::LightField(const char *portName, const char* experimentName,
     Experiment_->ExperimentCompleted += gcnew 
         System::EventHandler<ExperimentCompletedEventArgs^>(&completionEventHandler);
 
+    // Connect the image data event handler       
+    Experiment_->ImageDataSetReceived += gcnew 
+        System::EventHandler<ImageDataSetReceivedEventArgs^>(&imageDataEventHandler);
+
+    // Enable online orientation corrections
+    if (Experiment_->Exists(ExperimentSettings::OnlineCorrectionsOrientationCorrectionEnabled) &&
+        Experiment_->IsValid(ExperimentSettings::OnlineCorrectionsOrientationCorrectionEnabled, true))
+        Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsOrientationCorrectionEnabled, true);
+
     // Don't Automatically Attach Date/Time to the file name
     Experiment_->SetValue(ExperimentSettings::FileNameGenerationAttachDate, false);
     Experiment_->SetValue(ExperimentSettings::FileNameGenerationAttachTime, false);
@@ -726,6 +734,9 @@ LightField::LightField(const char *portName, const char* experimentName,
             driverName, functionName);
         return;
     }
+    
+    // Set the static object pointer
+    LightField_ = this;
 }
 
 /* Code for iocsh registration */
