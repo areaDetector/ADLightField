@@ -39,21 +39,18 @@ using namespace System::Collections::Generic;
 using namespace PrincetonInstruments::LightField::Automation;
 using namespace PrincetonInstruments::LightField::AddIns;
 
-#define ERROR_MESSAGE_SIZE 256
-#define MAX_COMMENT_SIZE 80
-/** The polling interval when checking to see if acquisition is complete */
-#define LIGHTFIELD_POLL_TIME .01
-
 static const char *driverName = "LightField";
 
-typedef enum {
-    LightFieldImageNormal,
-    LightFieldImagePreview
-} LightFieldImageMode_t;
-
 /** Driver-specific parameters for the Lightfield driver */
-#define LightFieldNumAcquisitionsString        "LIGHTFIELD_NACQUISITIONS"
-#define LightFieldNumAcquisitionsCounterString "LIGHTFIELD_NACQUISITIONS_COUNTER"
+#define LFNumAccumulationsString       "LF_NUM_ACCUMULATIONS"
+#define LFGratingString                "LF_GRATING"
+#define LFGratingWavelengthString      "LF_GRATING_WAVELENGTH"
+#define LFEntranceFrontWidthString     "LF_ENTRANCE_FRONT_WIDTH"
+#define LFExitSelectedString           "LF_EXIT_SELECTED"
+#define LFExperimentNameString         "LF_EXPERIMENT_NAME"
+#define LFShutterModeString            "LF_SHUTTER_MODE"
+#define LFBackgroundFileString         "LF_BACKGROUND_FILE"
+#define LFBackgroundEnableString       "LF_BACKGROUND_ENABLE"
 
 /** Driver for Princeton Instruments cameras using the LightField Automation software */
 class LightField : public ADDriver {
@@ -67,30 +64,32 @@ public:
     virtual asynStatus writeFloat64(asynUser *pasynUser, epicsFloat64 value);
     virtual void setShutter(int open);
     virtual void report(FILE *fp, int details);
-    void LightFieldTask();     /* This should be private but is called from C, must be public */
-    void setAcquisitionComplete(bool complete);
+    void setAcquisitionComplete();
+    void frameCallback(ImageDataSetReceivedEventArgs^ args);
 
 protected:
-    int LightFieldNumAcquisitions;
-    #define FIRST_LIGHTFIELD_PARAM LightFieldNumAcquisitions
-    int LightFieldNumAcquisitionsCounter;
-    #define LAST_LIGHTFIELD_PARAM LightFieldNumAcquisitionsCounter
+    int LFNumAccumulations_;
+    #define FIRST_LF_PARAM LFNumAccumulations_
+    int LFGrating_;
+    int LFGratingWavelength_;
+    int LFEntranceFrontWidth_;
+    int LFExitSelected_;
+    int LFExperimentName_;
+    int LFShutterMode_;
+    int LFBackgroundFile_;
+    int LFBackgroundEnable_;
+    #define LAST_LF_PARAM LFBackgroundEnable_
          
 private:                               
     gcroot<PrincetonInstruments::LightField::Automation::Automation ^> Automation_;
     gcroot<ILightFieldApplication^> Application_;
     gcroot<IExperiment^> Experiment_;
+    asynStatus setExperimentInteger(String^ setting, epicsInt32 value);
+    asynStatus setExperimentDouble(String^ setting, epicsFloat64 value);
     asynStatus setROI();
-    NDArray *getData();
     asynStatus getStatus();
-    asynStatus convertDataType(NDDataType_t NDArrayType, int *LightFieldType);
-    asynStatus saveFile();
+    asynStatus startAcquire();
     
-    /* Our data */
-    bool acquisitionComplete_;
-    epicsEventId startEventId;
-    epicsEventId stopEventId;
-    char errorMessage[ERROR_MESSAGE_SIZE];
 };
 
 // We use a static variable to hold a pointer to the LightField driver object
@@ -99,45 +98,264 @@ private:
 // to the LightField object in their callback functions
 static LightField *LightField_;
 
-#define NUM_LIGHTFIELD_PARAMS ((int)(&LAST_LIGHTFIELD_PARAM - &FIRST_LIGHTFIELD_PARAM + 1))
+#define NUM_LF_PARAMS ((int)(&LAST_LF_PARAM - &FIRST_LF_PARAM + 1))
 
 void completionEventHandler(System::Object^ sender, ExperimentCompletedEventArgs^ args)
 {
-    LightField_->setAcquisitionComplete(true);
+    LightField_->setAcquisitionComplete();
 }
 
 void imageDataEventHandler(System::Object^ sender, ImageDataSetReceivedEventArgs^ args)
 {
-    IImageDataSet^ dataSet = args->ImageDataSet;
-    IImageData^ data = dataSet->GetFrame(0, 0); 
-    printf("Image Data Set Received, Format=%d, Height=%d, Width=%d\n", data->Format, data->Height, data->Width);
-    System::Array^ arr = data->GetData();
-    printf("Image Data Set Received, Length=%d, Type=%d\n", arr->Length, arr->GetType());
-    int numBytes = arr->Length * sizeof(epicsInt16);
-    epicsInt16 *carray = (epicsInt16 *)malloc(numBytes);
-    pin_ptr<int> pptr = &arr[0];
-    memcpy(carray, pptr, numBytes);
-    printf("carray[0] = %d\n", carray[0]);
+    LightField_->frameCallback(args);
 }
 
-void LightField::setAcquisitionComplete(bool complete)
+
+extern "C" int LightFieldConfig(const char *portName, const char *experimentName,
+                           int maxBuffers, size_t maxMemory,
+                           int priority, int stackSize)
+{
+    new LightField(portName, experimentName, maxBuffers, maxMemory, priority, stackSize);
+    return(asynSuccess);
+}
+
+/** Constructor for LightField driver; most parameters are simply passed to ADDriver::ADDriver.
+  * After calling the base class constructor this method creates a thread to collect the detector data, 
+  * and sets reasonable default values for the parameters defined in this class, asynNDArrayDriver and
+  * ADDriver.
+  * \param[in] portName The name of the asyn port driver to be created.
+  * \param[in] maxBuffers The maximum number of NDArray buffers that the NDArrayPool for this driver is 
+  *            allowed to allocate. Set this to -1 to allow an unlimited number of buffers.
+  * \param[in] maxMemory The maximum amount of memory that the NDArrayPool for this driver is 
+  *            allowed to allocate. Set this to -1 to allow an unlimited amount of memory.
+  * \param[in] priority The thread priority for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
+  * \param[in] stackSize The stack size for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
+  */
+LightField::LightField(const char *portName, const char* experimentName,
+             int maxBuffers, size_t maxMemory,
+             int priority, int stackSize)
+
+    : ADDriver(portName, 1, NUM_LF_PARAMS, maxBuffers, maxMemory, 
+               0, 0,             /* No interfaces beyond those set in ADDriver.cpp */
+               ASYN_CANBLOCK, 1, /* ASYN_CANBLOCK=1, ASYN_MULTIDEVICE=0, autoConnect=1 */
+               priority, stackSize)
+
+{
+    int status = asynSuccess;
+    const char *functionName = "LightField";
+
+    createParam(LFNumAccumulationsString,        asynParamInt32,   &LFNumAccumulations_);
+    createParam(LFGratingString,                 asynParamOctet,   &LFGrating_);
+    createParam(LFGratingWavelengthString,     asynParamFloat64,   &LFGratingWavelength_);
+    createParam(LFEntranceFrontWidthString,      asynParamInt32,   &LFEntranceFrontWidth_);
+    createParam(LFExitSelectedString,            asynParamInt32,   &LFExitSelected_);
+    createParam(LFExperimentNameString,          asynParamOctet,   &LFExperimentName_);
+    createParam(LFTriggerModeString,             asynParamInt32,   &LFTriggerMode_);
+    createParam(LFBackgroundFileString,          asynParamOctet,   &LFBackgroundFile_);
+    createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
+ 
+    /* Read the state of the detector */
+    status = this->getStatus();
+    if (status) {
+        printf("%s:%s: unable to read detector status\n", driverName, functionName);
+        return;
+    }
+
+    // options can include a list of files to open when launching LightField
+    List<String^>^ options = gcnew List<String^>();
+    Automation_ = gcnew PrincetonInstruments::LightField::Automation::Automation(true, options);   
+
+    // Get the application interface from the automation
+ 	  Application_ = Automation_->LightFieldApplication;
+
+    // Get the experiment interface from the application
+    Experiment_  = Application_->Experiment;
+    
+    // Open the user-specified experiment, if any
+    if (experimentName && strlen(experimentName) > 0) {
+        Experiment_->Load(gcnew String (experimentName));
+    }
+
+    // Tell the application to suppress prompts (overwrite file names, etc...)
+    Application_->UserInteractionManager->SuppressUserInteraction = true;
+
+    // Try to connect to a camera
+    bool bCameraFound = false;
+    CString cameraName;
+    // Look for a camera already added to the experiment
+    List<PrincetonInstruments::LightField::AddIns::IDevice^> experimentList = Experiment_->ExperimentDevices;        
+    for each(IDevice^% device in experimentList)
+    {
+        if (device->Type == DeviceType::Camera)
+        {
+            // Cache the name
+            cameraName = device->Model;
+            
+            // Break loop on finding camera
+            bCameraFound = true;
+            break;
+        }
+    }
+    if (!bCameraFound)
+    {
+        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+            "%s:%s: error, cannot find camera\n",
+            driverName, functionName);
+        return;
+    }
+
+    /* Set some default values for parameters */
+    int width = safe_cast<int>(Experiment_->GetValue(CameraSettings::SensorInformationActiveAreaWidth));
+    int height = safe_cast<int>(Experiment_->GetValue(CameraSettings::SensorInformationActiveAreaHeight));
+
+    setIntegerParam(ADMaxSizeX, width);
+    setIntegerParam(ADMaxSizeY, height);
+    status =  setStringParam (ADManufacturer, "Princeton Instruments");
+    status |= setStringParam (ADModel, cameraName);
+    status |= setIntegerParam(ADImageMode, ADImageSingle);
+    status |= setDoubleParam (ADAcquireTime, .1);
+    status |= setDoubleParam (ADAcquirePeriod, .5);
+    status |= setIntegerParam(ADNumImages, 1);
+    if (status) {
+        printf("%s:%s: unable to set camera parameters\n", driverName, functionName);
+        return;
+    }
+    
+    // Connect the acquisition event handler       
+    Experiment_->ExperimentCompleted += gcnew 
+        System::EventHandler<ExperimentCompletedEventArgs^>(&completionEventHandler);
+
+    // Connect the image data event handler       
+    Experiment_->ImageDataSetReceived += gcnew 
+        System::EventHandler<ImageDataSetReceivedEventArgs^>(&imageDataEventHandler);
+
+    // Enable online orientation corrections
+    setExperimentInteger(ExperimentSettings::OnlineCorrectionsOrientationCorrectionEnabled, true);
+
+    // Don't Automatically Attach Date/Time to the file name
+    setExperimentInteger(ExperimentSettings::FileNameGenerationAttachDate, false);
+    setExperimentInteger(ExperimentSettings::FileNameGenerationAttachTime, false);
+    setExperimentInteger(ExperimentSettings::FileNameGenerationAttachIncrement, false);
+
+    // Set the static object pointer
+    LightField_ = this;
+}
+
+
+void LightField::setAcquisitionComplete()
 {
     lock();
-    acquisitionComplete_ = complete;
+    setIntegerParam(ADAcquire, 0);
+    callParamCallbacks();
     unlock();
 }
 
-asynStatus LightField::saveFile()
+//_____________________________________________________________________________________________
+/** callback function that is called by XISL every frame at end of data transfer */
+void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
 {
-    return asynSuccess;
+  NDArrayInfo   arrayInfo;
+  int           arrayCounter;
+  int           imageCounter;
+  char          *pInput;
+  size_t        dims[2];
+  NDArray       *pImage;
+  NDDataType_t  dataType;
+  epicsTimeStamp currentTime;
+  static const char *functionName = "frameCallback";
+    
+  asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
+    "%s:%s: entry ...\n",
+    driverName, functionName);
+
+  IImageDataSet^ dataSet = args->ImageDataSet;
+  IImageData^ frame = dataSet->GetFrame(0, 0); 
+  Array^ array = frame->GetData();
+  switch (frame->Format) {
+    case PixelDataFormat::MonochromeUnsigned16: {
+      dataType = NDUInt16;
+      cli::array<epicsUInt16>^ data = dynamic_cast<cli::array<epicsUInt16>^>(array);
+      pin_ptr<epicsUInt16> pptr = &data[0];
+      pInput = (char *)pptr;
+      break;
+    }
+    case PixelDataFormat::MonochromeUnsigned32: {
+      dataType = NDUInt32;
+      cli::array<epicsUInt32>^ data = dynamic_cast<cli::array<epicsUInt32>^>(array);
+      pin_ptr<epicsUInt32> pptr = &data[0];
+      pInput = (char *)pptr;
+      break;
+    }
+    case PixelDataFormat::MonochromeFloating32: {
+      dataType = NDFloat32;
+      cli::array<epicsFloat32>^ data = dynamic_cast<cli::array<epicsFloat32>^>(array);
+      pin_ptr<epicsFloat32> pptr = &data[0];
+      pInput = (char *)pptr;
+      break;
+    }
+  }
+
+  lock();
+
+  /* Update the image */
+  /* We save the most recent image buffer so it can be used in the read() function.
+   * Now release it before getting a new version. */
+  if (this->pArrays[0])
+      this->pArrays[0]->release();
+  /* Allocate the array */
+  dims[0] = frame->Width;
+  dims[1] = frame->Height;
+  this->pArrays[0] = pNDArrayPool->alloc(2, dims, dataType, 0, NULL);
+  if (this->pArrays[0] == NULL) {
+    asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+      "%s:%s: error allocating buffer\n",
+      driverName, functionName);
+    unlock();
+    return;
+  }
+  pImage = this->pArrays[0];
+  pImage->getInfo(&arrayInfo);
+  // Copy the data from the input to the output
+  memcpy(pImage->pData, pInput, arrayInfo.totalBytes);
+
+  setIntegerParam(NDDataType, dataType);
+  setIntegerParam(NDArraySize,  (int)arrayInfo.totalBytes);
+  setIntegerParam(NDArraySizeX, (int)pImage->dims[0].size);
+  setIntegerParam(NDArraySizeY, (int)pImage->dims[1].size);
+
+  getIntegerParam(ADNumImagesCounter, &imageCounter);
+  imageCounter++;
+  setIntegerParam(ADNumImagesCounter, imageCounter);
+
+  /* Put the frame number and time stamp into the buffer */
+  getIntegerParam(NDArrayCounter, &arrayCounter);
+  arrayCounter++;
+  setIntegerParam(NDArrayCounter, arrayCounter);
+  pImage->uniqueId = arrayCounter;
+  epicsTimeGetCurrent(&currentTime);
+  pImage->timeStamp = currentTime.secPastEpoch + currentTime.nsec / 1.e9;
+
+  /* Get any attributes that have been defined for this driver */
+  getAttributes(pImage->pAttributeList);
+
+  /* Call the NDArray callback */
+  /* Must release the lock here, or we can get into a deadlock, because we can
+   * block on the plugin lock, and the plugin can be calling us */
+  unlock();
+  asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
+    "%s:%s: calling imageData callback\n", 
+    driverName, functionName);
+  doCallbacksGenericPointer(pImage, NDArrayData, 0);
+  lock();
+
+  // Do callbacks on parameters
+  callParamCallbacks();
+
+  unlock();
+  asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
+    "%s:%s: exit\n",
+    driverName, functionName);
 }
-
-
-NDArray* LightField::getData()
-{
-   return NULL;
-}
-
 
 asynStatus LightField::getStatus()
 {
@@ -148,6 +366,30 @@ asynStatus LightField::getStatus()
     
     callParamCallbacks();
     return(asynSuccess);
+}
+
+asynStatus LightField::startAcquire()
+{
+    size_t len;
+    int imageMode;
+    char filePath[MAX_FILENAME_LEN], fileName[MAX_FILENAME_LEN];
+
+    /* Set the file name and path */
+    createFileName(MAX_FILENAME_LEN, filePath, fileName);
+    // Remove trailing \ or / because LightField won't accept it
+    len = strlen(filePath);
+    if (len > 0) filePath[len-1] = 0;        
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));    
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));    
+
+    // Start acquisition 
+    getIntegerParam(ADImageMode, &imageMode);
+    if (imageMode == ADImageContinuous) {
+        Experiment_->Preview();
+    } else {
+        Experiment_->Acquire();
+    }
+    return asynSuccess;
 }
 
 
@@ -226,167 +468,40 @@ void LightField::setShutter(int open)
     }
 }
 
-
-static void LightFieldTaskC(void *drvPvt)
+asynStatus LightField::setExperimentInteger(String^ setting, epicsInt32 value)
 {
-    LightField *pPvt = (LightField *)drvPvt;
-    
-    pPvt->LightFieldTask();
-}
-
-/** This thread computes new image data and does the callbacks to send it to higher layers */
-void LightField::LightFieldTask()
-{
-    int status = asynSuccess;
-    int imageCounter;
-    int numAcquisitions, numAcquisitionsCounter;
-    int imageMode;
-    int arrayCallbacks;
-    int acquire, autoSave;
-    size_t len;
-    NDArray *pImage;
-    double acquireTime, acquirePeriod, delay;
-    epicsTimeStamp startTime, endTime;
-    double elapsedTime;
-    char filePath[MAX_FILENAME_LEN], fileName[MAX_FILENAME_LEN];
-    const char *functionName = "LightFieldTask";
-
-    this->lock();
-    /* Loop forever */
-    while (1) {
-        /* Is acquisition active? */
-        getIntegerParam(ADAcquire, &acquire);
-        
-        /* If we are not acquiring then wait for a semaphore that is given when acquisition is started */
-        if (!acquire) {
-            setIntegerParam(ADStatus, ADStatusIdle);
-            callParamCallbacks();
-            /* Release the lock while we wait for an event that says acquire has started, then lock again */
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW, 
-                "%s:%s: waiting for acquire to start\n", driverName, functionName);
-            this->unlock();
-            status = epicsEventWait(this->startEventId);
-            this->lock();
-            getIntegerParam(ADAcquire, &acquire);
-            setIntegerParam(LightFieldNumAcquisitionsCounter, 0);
-        }
-        
-        /* We are acquiring. */
-        /* Get the current time */
-        epicsTimeGetCurrent(&startTime);
-        
-        /* Get the exposure parameters */
-        getDoubleParam(ADAcquireTime, &acquireTime);
-        getDoubleParam(ADAcquirePeriod, &acquirePeriod);
-        getIntegerParam(ADImageMode, &imageMode);
-        getIntegerParam(LightFieldNumAcquisitions, &numAcquisitions);
-        
-        setIntegerParam(ADStatus, ADStatusAcquire);
-        
-        /* Open the shutter */
-        setShutter(ADShutterOpen);
-
-        /* Call the callbacks to update any changes */
-        callParamCallbacks();
-        
-        /* Set the file name and path */
-        createFileName(MAX_FILENAME_LEN, filePath, fileName);
-        // Remove trailing \ or / because LightField won't accept it
-        len = strlen(filePath);
-        if (len > 0) filePath[len-1] = 0;        
-        Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));    
-        Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));    
-
-        // Start acquisition 
-        acquisitionComplete_ = false;
-        if (imageMode == ADImageContinuous) {
-            Experiment_->Preview();
-        } else {
-            Experiment_->Acquire();
-        }
-
-        /* Wait for acquisition to complete, but allow acquire stop events to be handled */
-        while (1) {
-            this->unlock();
-            status = epicsEventWaitWithTimeout(this->stopEventId, LIGHTFIELD_POLL_TIME);
-            this->lock();
-            if (status == epicsEventWaitOK) {
-                /* We got a stop event, abort acquisition */
-                Experiment_->Stop();
-                acquire = 0;
-            } else {
-                acquire = !acquisitionComplete_;
-            }
-            if (!acquire) {
-                /* Close the shutter */
-                setShutter(ADShutterClosed);
-                break;
-            }
-        }
-
-        /* Get the current parameters */
-        getIntegerParam(NDAutoSave,         &autoSave);
-        getIntegerParam(NDArrayCounter,     &imageCounter);
-        getIntegerParam(LightFieldNumAcquisitionsCounter, &numAcquisitionsCounter);
-        getIntegerParam(NDArrayCallbacks,   &arrayCallbacks);
-        imageCounter++;
-        numAcquisitionsCounter++;
-        setIntegerParam(NDArrayCounter, imageCounter);
-        setIntegerParam(LightFieldNumAcquisitionsCounter, numAcquisitionsCounter);
-        
-        if (arrayCallbacks) {
-            /* Get the data from the DocFile */
-            pImage = this->getData();
-            if (pImage)  {
-                /* Put the frame number and time stamp into the buffer */
-                pImage->uniqueId = imageCounter;
-                pImage->timeStamp = startTime.secPastEpoch + startTime.nsec / 1.e9;
-                /* Get any attributes that have been defined for this driver */        
-                this->getAttributes(pImage->pAttributeList);
-                /* Call the NDArray callback */
-                /* Must release the lock here, or we can get into a deadlock, because we can
-                 * block on the plugin lock, and the plugin can be calling us */
-                this->unlock();
-                asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW, 
-                     "%s:%s: calling imageData callback\n", driverName, functionName);
-                doCallbacksGenericPointer(pImage, NDArrayData, 0);
-                this->lock();
-                pImage->release();
-            }
-        }
-        
-        /* See if acquisition is done */
-        if ((imageMode == LightFieldImagePreview) ||
-            ((imageMode == LightFieldImageNormal) && 
-             (numAcquisitionsCounter >= numAcquisitions))) {
-            setIntegerParam(ADAcquire, 0);
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW, 
-                  "%s:%s: acquisition completed\n", driverName, functionName);
-        }
-        
-        /* Call the callbacks to update any changes */
-        callParamCallbacks();
-        getIntegerParam(ADAcquire, &acquire);
-        
-        /* If we are acquiring then sleep for the acquire period minus elapsed time. */
-        if (acquire) {
-            epicsTimeGetCurrent(&endTime);
-            elapsedTime = epicsTimeDiffInSeconds(&endTime, &startTime);
-            delay = acquirePeriod - elapsedTime;
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW, 
-                     "%s:%s: delay=%f\n",
-                      driverName, functionName, delay);            
-            if (delay >= 0.0) {
-                /* We set the status to indicate we are in the period delay */
-                setIntegerParam(ADStatus, ADStatusWaiting);
-                callParamCallbacks();
-                this->unlock();
-                status = epicsEventWaitWithTimeout(this->stopEventId, delay);
-                this->lock();
-            }
-        }
+    static const char *functionName = "setExperimentInteger";
+    try {
+        if (Experiment_->Exists(setting) &&
+            Experiment_->IsValid(setting, value))
+            Experiment_->SetValue(setting, value);
     }
+    catch(System::Exception^ pEx) {
+        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+            "%s:%s: value=%d, exception = %s\n", 
+            driverName, functionName, value, pEx->ToString());
+        return asynError;
+    }
+    return asynSuccess;
 }
+
+asynStatus LightField::setExperimentDouble(String^ setting, epicsFloat64 value)
+{
+    static const char *functionName = "setExperimentDouble";
+    try {
+        if (Experiment_->Exists(setting) &&
+            Experiment_->IsValid(setting, value))
+            Experiment_->SetValue(setting, value);
+    }
+    catch(System::Exception^ pEx) {
+        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+            "%s:%s: value=%d, exception = %s\n", 
+            driverName, functionName, value, pEx->ToString());
+        return asynError;
+    }
+    return asynSuccess;
+}
+
 
 
 /** Called when asyn clients call pasynInt32->write().
@@ -398,8 +513,6 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
 {
     int function = pasynUser->reason;
     int currentlyAcquiring;
-    int dataType;
-    int LightFieldDataType;
     asynStatus status = asynSuccess;
     int needReadStatus=1;
     const char* functionName="writeInt32";
@@ -411,69 +524,44 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
      * status at the end, but that's OK */
     status = setIntegerParam(function, value);
 
-    try {
-        if (function == ADAcquire) {
-            if (value && !currentlyAcquiring) {
-                /* Send an event to wake up the LightField task.  
-                 * It won't actually start generating new images until we release the lock below */
-                epicsEventSignal(this->startEventId);
-            } 
-            if (!value && currentlyAcquiring) {
-                /* This was a command to stop acquisition */
-                /* Send the stop event */
-                epicsEventSignal(this->stopEventId);
-            }
-        } else if ( (function == ADBinX) ||
-                    (function == ADBinY) ||
-                    (function == ADMinX) ||
-                    (function == ADMinY) ||
-                    (function == ADSizeX) ||
-                    (function == ADSizeY)) {
-            this->setROI();
-        } else if (function == NDDataType) {
-        } else if (function == ADNumImages) {
-            if (Experiment_->Exists(ExperimentSettings::AcquisitionFramesToStore) &&
-                Experiment_->IsValid(ExperimentSettings::AcquisitionFramesToStore, value))
-                Experiment_->SetValue(ExperimentSettings::AcquisitionFramesToStore, value);
-        } else if (function == ADNumExposures) {
-            if (Experiment_->Exists(CameraSettings::ReadoutControlAccumulations) &&
-                Experiment_->IsValid(CameraSettings::ReadoutControlAccumulations, value))
-                Experiment_->SetValue(CameraSettings::ReadoutControlAccumulations, value);
-        } else if (function == ADReverseX) {
-            if (Experiment_->Exists(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally) &&
-                Experiment_->IsValid(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, value))
-                Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, value);
-        } else if (function == ADReverseY) {
-            if (Experiment_->Exists(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically) &&
-                Experiment_->IsValid(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically, value))
-                Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically, value);
-        } else if (function == ADTriggerMode) {
-            PrincetonInstruments::LightField::AddIns::TriggerSource trigger;            
-            if (value == ADTriggerInternal) 
-                trigger = TriggerSource::Internal;
-            else 
-                trigger = TriggerSource::External;
-            if (Experiment_->Exists(CameraSettings::HardwareIOTriggerSource) &&
-                Experiment_->IsValid(CameraSettings::HardwareIOTriggerSource, trigger))
-                Experiment_->SetValue(CameraSettings::HardwareIOTriggerSource, trigger);
-        } else if (function == ADShutterMode) {
-        } else if (function == NDDataType) {
-            getIntegerParam(NDDataType, &dataType);
-            if (value == 0) { /* Not auto data type, re-send data type */
-                getIntegerParam(NDDataType, &dataType);
-                convertDataType((NDDataType_t)dataType, &LightFieldDataType);
-            }
-        } else {
-            needReadStatus = 0;
-            /* If this parameter belongs to a base class call its method */
-            if (function < FIRST_LIGHTFIELD_PARAM) status = ADDriver::writeInt32(pasynUser, value);
+    if (function == ADAcquire) {
+        if (value && !currentlyAcquiring) {
+            startAcquire();
+        } 
+        if (!value && currentlyAcquiring) {
+            /* This was a command to stop acquisition */
+            /* Send the stop event */
+            Experiment_->Stop();
         }
-    }
-    catch(System::Exception^ pEx) {
-        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: function=%d, value=%d, exception = %s\n", 
-            driverName, functionName, function, value, pEx->ToString());
-        status = asynError;
+    } else if ( (function == ADBinX) ||
+                (function == ADBinY) ||
+                (function == ADMinX) ||
+                (function == ADMinY) ||
+                (function == ADSizeX) ||
+                (function == ADSizeY)) {
+        this->setROI();
+    } else if (function == ADNumImages) {
+        status = setExperimentInteger(ExperimentSettings::AcquisitionFramesToStore, value);
+    } else if (function == ADNumExposures) {
+        status = setExperimentInteger(ExperimentSettings::OnlineProcessingFrameCombinationFramesCombined, value);
+    } else if (function == LFNumAccumulations_) {
+        status = setExperimentInteger(CameraSettings::ReadoutControlAccumulations, value);
+    } else if (function == ADReverseX) {
+        status = setExperimentInteger(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, value);
+    } else if (function == ADReverseY) {
+        status = setExperimentInteger(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically, value);
+    } else if (function == ADTriggerMode) {
+        PrincetonInstruments::LightField::AddIns::TriggerSource trigger;            
+        if (value == ADTriggerInternal) 
+            trigger = TriggerSource::Internal;
+        else 
+            trigger = TriggerSource::External;
+        status = setExperimentInteger(CameraSettings::HardwareIOTriggerSource, (int)trigger);
+    } else if (function == ADShutterMode) {
+    } else {
+        needReadStatus = 0;
+        /* If this parameter belongs to a base class call its method */
+        if (function < FIRST_LF_PARAM) status = ADDriver::writeInt32(pasynUser, value);
     }
     
     /* Read the actual state of the detector after this operation if anything could have changed */
@@ -508,38 +596,26 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
 
     /* Set the parameter and readback in the parameter library.  This may be overwritten when we read back the
      * status at the end, but that's OK */
-    status = setDoubleParam(function, value);
+    setDoubleParam(function, value);
 
     /* Changing any of the following parameters requires recomputing the base image */
-    try {
-        if (function == ADAcquireTime) {
-        if (Experiment_->Exists(CameraSettings::ShutterTimingExposureTime) &&
-            Experiment_->IsValid(CameraSettings::ShutterTimingExposureTime, value*1000.))
-                // LightField units are ms 
-                Experiment_->SetValue(CameraSettings::ShutterTimingExposureTime, value*1000.);
-        } else if (function == ADTemperature) {
-            if (Experiment_->Exists(CameraSettings::SensorTemperatureSetPoint) &&
-                Experiment_->IsValid(CameraSettings::SensorTemperatureSetPoint, value))
-                Experiment_->SetValue(CameraSettings::SensorTemperatureSetPoint, value);
-        } else if (function == ADGain) {
-            PrincetonInstruments::LightField::AddIns::AdcGain gain;
-            if (value <= 1.5)      gain = AdcGain::Low;
-            else if (value <= 2.5) gain = AdcGain::Medium;
-            else                   gain = AdcGain::High;
-            if (Experiment_->Exists(CameraSettings::AdcAnalogGain) &&
-                Experiment_->IsValid(CameraSettings::AdcAnalogGain, gain))
-                Experiment_->SetValue(CameraSettings::AdcAnalogGain, gain);
-        } else {
-            needReadStatus = 0;
-            /* If this parameter belongs to a base class call its method */
-            if (function < FIRST_LIGHTFIELD_PARAM) status = ADDriver::writeFloat64(pasynUser, value);
-        }
-    }
-    catch(System::Exception^ pEx) {
-        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: function=%d, value=%f, exception = %s\n", 
-            driverName, functionName, function, value, pEx->ToString());
-        status = asynError;
+    if (function == ADAcquireTime) {
+        // LightField units are ms 
+        status = setExperimentDouble(CameraSettings::ShutterTimingExposureTime, value*1000.);
+    } else if (function == ADTemperature) {
+        status = setExperimentDouble(CameraSettings::SensorTemperatureSetPoint, value);
+    } else if (function == LFGratingWavelength_) {
+        status = setExperimentDouble(SpectrometerSettings::GratingCenterWavelength, value);
+    } else if (function == ADGain) {
+        PrincetonInstruments::LightField::AddIns::AdcGain gain;
+        if (value <= 1.5)      gain = AdcGain::Low;
+        else if (value <= 2.5) gain = AdcGain::Medium;
+        else                   gain = AdcGain::High;
+        status = setExperimentInteger(CameraSettings::AdcAnalogGain, (int)gain);
+    } else {
+        needReadStatus = 0;
+        /* If this parameter belongs to a base class call its method */
+        if (function < FIRST_LF_PARAM) status = ADDriver::writeFloat64(pasynUser, value);
     }
 
     /* Read the actual state of the detector after this operation */
@@ -582,162 +658,6 @@ void LightField::report(FILE *fp, int details)
     ADDriver::report(fp, details);
 }
 
-extern "C" int LightFieldConfig(const char *portName, const char *experimentName,
-                           int maxBuffers, size_t maxMemory,
-                           int priority, int stackSize)
-{
-    new LightField(portName, experimentName, maxBuffers, maxMemory, priority, stackSize);
-    return(asynSuccess);
-}
-
-/** Constructor for LightField driver; most parameters are simply passed to ADDriver::ADDriver.
-  * After calling the base class constructor this method creates a thread to collect the detector data, 
-  * and sets reasonable default values for the parameters defined in this class, asynNDArrayDriver and
-  * ADDriver.
-  * \param[in] portName The name of the asyn port driver to be created.
-  * \param[in] maxBuffers The maximum number of NDArray buffers that the NDArrayPool for this driver is 
-  *            allowed to allocate. Set this to -1 to allow an unlimited number of buffers.
-  * \param[in] maxMemory The maximum amount of memory that the NDArrayPool for this driver is 
-  *            allowed to allocate. Set this to -1 to allow an unlimited amount of memory.
-  * \param[in] priority The thread priority for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
-  * \param[in] stackSize The stack size for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
-  */
-LightField::LightField(const char *portName, const char* experimentName,
-             int maxBuffers, size_t maxMemory,
-             int priority, int stackSize)
-
-    : ADDriver(portName, 1, NUM_LIGHTFIELD_PARAMS, maxBuffers, maxMemory, 
-               0, 0,             /* No interfaces beyond those set in ADDriver.cpp */
-               ASYN_CANBLOCK, 1, /* ASYN_CANBLOCK=1, ASYN_MULTIDEVICE=0, autoConnect=1 */
-               priority, stackSize)
-
-{
-    int status = asynSuccess;
-    const char *functionName = "LightField";
-
-    acquisitionComplete_ = true;
-
-    createParam(LightFieldNumAcquisitionsString,        asynParamInt32,   &LightFieldNumAcquisitions);
-    createParam(LightFieldNumAcquisitionsCounterString, asynParamInt32,   &LightFieldNumAcquisitionsCounter);
- 
-
-    /* Read the state of the detector */
-    status = this->getStatus();
-    if (status) {
-        printf("%s:%s: unable to read detector status\n", driverName, functionName);
-        return;
-    }
-
-   /* Create the epicsEvents for signaling to the acquisition task when acquisition starts and stops */
-    this->startEventId = epicsEventCreate(epicsEventEmpty);
-    if (!this->startEventId) {
-        printf("%s:%s: epicsEventCreate failure for start event\n", 
-            driverName, functionName);
-        return;
-    }
-    this->stopEventId = epicsEventCreate(epicsEventEmpty);
-    if (!this->stopEventId) {
-        printf("%s:%s: epicsEventCreate failure for stop event\n", 
-            driverName, functionName);
-        return;
-    }
-    
-    // options can include a list of files to open when launching LightField
-    List<String^>^ options = gcnew List<String^>();
-    Automation_ = gcnew PrincetonInstruments::LightField::Automation::Automation(true, options);   
-
-    // Get the application interface from the automation
- 	  Application_ = Automation_->LightFieldApplication;
-
-    // Get the experiment interface from the application
-    Experiment_  = Application_->Experiment;
-    
-    // Open the user-specified experiment, if any
-    if (experimentName && strlen(experimentName) > 0) {
-        Experiment_->Load(gcnew String (experimentName));
-    }
-
-    // Tell the application to suppress prompts (overwrite file names, etc...)
-    Application_->UserInteractionManager->SuppressUserInteraction = true;
-
-    // Try to connect to a camera
-    bool bCameraFound = false;
-    CString cameraName;
-    ////////////////////////////////////////////////////////////////////////////////
-    // Look for a camera already added to the experiment
-    List<PrincetonInstruments::LightField::AddIns::IDevice^> experimentList = Experiment_->ExperimentDevices;        
-    for each(IDevice^% device in experimentList)
-    {
-        if (device->Type == DeviceType::Camera)
-        {
-            // Cache the name
-            cameraName = device->Model;
-            
-            // Break loop on finding camera
-            bCameraFound = true;
-            break;
-        }
-    }
-    if (!bCameraFound)
-    {
-        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: error, cannot find camera\n",
-            driverName, functionName);
-        return;
-    }
-
-    /* Set some default values for parameters */
-    int width = safe_cast<int>(Experiment_->GetValue(CameraSettings::SensorInformationActiveAreaWidth));
-    int height = safe_cast<int>(Experiment_->GetValue(CameraSettings::SensorInformationActiveAreaHeight));
-
-    setIntegerParam(ADMaxSizeX, width);
-    setIntegerParam(ADMaxSizeY, height);
-    status =  setStringParam (ADManufacturer, "Princeton Instruments");
-    status |= setStringParam (ADModel, cameraName);
-    status |= setIntegerParam(ADImageMode, ADImageSingle);
-    status |= setDoubleParam (ADAcquireTime, .1);
-    status |= setDoubleParam (ADAcquirePeriod, .5);
-    status |= setIntegerParam(ADNumImages, 1);
-    status |= setIntegerParam(LightFieldNumAcquisitions, 1);
-    status |= setIntegerParam(LightFieldNumAcquisitionsCounter, 0);
-    if (status) {
-        printf("%s:%s: unable to set camera parameters\n", driverName, functionName);
-        return;
-    }
-    
-    // Connect the acquisition event handler       
-    Experiment_->ExperimentCompleted += gcnew 
-        System::EventHandler<ExperimentCompletedEventArgs^>(&completionEventHandler);
-
-    // Connect the image data event handler       
-    Experiment_->ImageDataSetReceived += gcnew 
-        System::EventHandler<ImageDataSetReceivedEventArgs^>(&imageDataEventHandler);
-
-    // Enable online orientation corrections
-    if (Experiment_->Exists(ExperimentSettings::OnlineCorrectionsOrientationCorrectionEnabled) &&
-        Experiment_->IsValid(ExperimentSettings::OnlineCorrectionsOrientationCorrectionEnabled, true))
-        Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsOrientationCorrectionEnabled, true);
-
-    // Don't Automatically Attach Date/Time to the file name
-    Experiment_->SetValue(ExperimentSettings::FileNameGenerationAttachDate, false);
-    Experiment_->SetValue(ExperimentSettings::FileNameGenerationAttachTime, false);
-    Experiment_->SetValue(ExperimentSettings::FileNameGenerationAttachIncrement, false);
-
-    /* Create the thread that updates the images */
-    status = (epicsThreadCreate("LightFieldTask",
-                                epicsThreadPriorityMedium,
-                                epicsThreadGetStackSize(epicsThreadStackMedium),
-                                (EPICSTHREADFUNC)LightFieldTaskC,
-                                this) == NULL);
-    if (status) {
-        printf("%s:%s: epicsThreadCreate failure for LightField task\n", 
-            driverName, functionName);
-        return;
-    }
-    
-    // Set the static object pointer
-    LightField_ = this;
-}
 
 /* Code for iocsh registration */
 static const iocshArg LightFieldConfigArg0 = {"Port name", iocshArgString};
