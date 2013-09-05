@@ -43,6 +43,7 @@ static const char *driverName = "LightField";
 
 /** Driver-specific parameters for the Lightfield driver */
 #define LFNumAccumulationsString       "LF_NUM_ACCUMULATIONS"
+#define LFNumAcquisitionsString        "LF_NUM_ACQUISITIONS"
 #define LFGratingString                "LF_GRATING"
 #define LFGratingWavelengthString      "LF_GRATING_WAVELENGTH"
 #define LFEntranceFrontWidthString     "LF_ENTRANCE_FRONT_WIDTH"
@@ -70,6 +71,7 @@ public:
 protected:
     int LFNumAccumulations_;
     #define FIRST_LF_PARAM LFNumAccumulations_
+    int LFNumAcquisitions_;
     int LFGrating_;
     int LFGratingWavelength_;
     int LFEntranceFrontWidth_;
@@ -145,12 +147,13 @@ LightField::LightField(const char *portName, const char* experimentName,
     const char *functionName = "LightField";
 
     createParam(LFNumAccumulationsString,        asynParamInt32,   &LFNumAccumulations_);
+    createParam(LFNumAcquisitionsString,         asynParamInt32,   &LFNumAcquisitions_);
     createParam(LFGratingString,                 asynParamOctet,   &LFGrating_);
     createParam(LFGratingWavelengthString,     asynParamFloat64,   &LFGratingWavelength_);
     createParam(LFEntranceFrontWidthString,      asynParamInt32,   &LFEntranceFrontWidth_);
     createParam(LFExitSelectedString,            asynParamInt32,   &LFExitSelected_);
     createParam(LFExperimentNameString,          asynParamOctet,   &LFExperimentName_);
-    createParam(LFTriggerModeString,             asynParamInt32,   &LFTriggerMode_);
+    createParam(LFShutterModeString,             asynParamInt32,   &LFShutterMode_);
     createParam(LFBackgroundFileString,          asynParamOctet,   &LFBackgroundFile_);
     createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
  
@@ -557,7 +560,19 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
         else 
             trigger = TriggerSource::External;
         status = setExperimentInteger(CameraSettings::HardwareIOTriggerSource, (int)trigger);
-    } else if (function == ADShutterMode) {
+    } else if (function == LFShutterMode_) {
+        status = setExperimentInteger(CameraSettings::ShutterTimingMode, value);
+    } else if (function == LFEntranceFrontWidth_) {
+        status = setExperimentInteger(SpectrometerSettings::OpticalPortEntranceFrontWidth, value);
+    } else if (function == LFExitSelected_) {
+        PrincetonInstruments::LightField::AddIns::OpticalPortLocation location;
+        if (value == 0) 
+            location = OpticalPortLocation::SideExit;
+        else
+            location = OpticalPortLocation::FrontExit;
+        status = setExperimentInteger(SpectrometerSettings::OpticalPortExitSelected, (int)location);
+    } else if (function == LFBackgroundEnable_) {
+        status = setExperimentInteger(ExperimentSettings::OnlineCorrectionsBackgroundCorrectionEnabled, value);
     } else {
         needReadStatus = 0;
         /* If this parameter belongs to a base class call its method */
