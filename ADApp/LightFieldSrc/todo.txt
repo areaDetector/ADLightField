@@ -1,0 +1,10 @@
+To Do in LightField driver
+
+Update actual settings (temperature, etc.)
+
+Number of accumulations
+
+Do enum callbacks
+
+Acquire background
+Apply background
