@@ -127,8 +127,8 @@ int main(int argc, char *argv[])
     int w  = 500;
     int xb = 1;
 
-    int y  = 100;
-    int h  = 150;
+    int y  = 10;
+    int h  = 50;
     int yb = 1;
 
     double exposureTime = 1100.;  // The units are ms
@@ -156,6 +156,30 @@ int main(int argc, char *argv[])
         printf("LFTest1, setting exposure time\n");
         if (m_Experiment->IsValid(CameraSettings::ShutterTimingExposureTime, exposureTime))        
             m_Experiment->SetValue(CameraSettings::ShutterTimingExposureTime, exposureTime);              
+    }               
+
+    ///////////////Spectrometer optical exit port setup /////////////////////////////
+    printf("LFTest1, testing if SpectrometerSettings::OpticalPortExitSelected exists\n");       
+    if (m_Experiment->Exists(SpectrometerSettings::OpticalPortExitSelected))
+    {
+        printf("LFTest1, testing if SpectrometerSettings::OpticalPortExitSelected=OpticalPortLocation::FrontExit is readonly\n"); 
+        bool readOnly = m_Experiment->IsReadOnly(SpectrometerSettings::OpticalPortExitSelected);
+        printf("LFTest1, SpectrometerSettings::OpticalPortExitSelected, readonly=%d\n", readOnly);         
+        //printf("LFTest1, testing if SpectrometerSettings::OpticalPortExitSelected=OpticalPortLocation::FrontExit is valid\n");       
+        ;// (m_Experiment->IsValid(SpectrometerSettings::OpticalPortExitSelected, OpticalPortLocation::FrontExit)) {
+            printf("LFTest1, setting SpectrometerSettings::OpticalPortExitSelected=OpticalPortLocation::FrontExit (%d)\n", OpticalPortLocation::FrontExit);       
+            m_Experiment->SetValue(SpectrometerSettings::OpticalPortExitSelected, OpticalPortLocation::FrontExit); 
+        //}             
+    }               
+    ///////////////Spectrometer setup /////////////////////////////
+    printf("LFTest1, testing if SpectrometerSettings::OpticalPortEntranceSideWidth exists\n");       
+    if (m_Experiment->Exists(SpectrometerSettings::OpticalPortEntranceSideWidth))
+    {
+        printf("LFTest1, testing if SpectrometerSettings::OpticalPortEntranceSideWidth=10 is valid\n");       
+        if (m_Experiment->IsValid(SpectrometerSettings::OpticalPortEntranceSideWidth, 10)) {
+            printf("LFTest1, setting SpectrometerSettings::OpticalPortEntranceSideWidth=10\n");       
+            m_Experiment->SetValue(SpectrometerSettings::OpticalPortEntranceSideWidth, 10); 
+        }             
     }               
     ////////////////////////////////////////////////////////////////
     // Don't Automatically Attach Date/Time to the file name

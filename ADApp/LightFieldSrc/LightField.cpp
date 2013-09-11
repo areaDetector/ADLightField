@@ -23,6 +23,7 @@
 #include <epicsStdio.h>
 #include <epicsMutex.h>
 #include <cantProceed.h>
+#include <ellLib.h>
 #include <iocsh.h>
 
 #include "ADDriver.h"
@@ -42,16 +43,24 @@ using namespace PrincetonInstruments::LightField::AddIns;
 static const char *driverName = "LightField";
 
 /** Driver-specific parameters for the Lightfield driver */
+#define LFGainString                   "LF_GAIN"
 #define LFNumAccumulationsString       "LF_NUM_ACCUMULATIONS"
 #define LFNumAcquisitionsString        "LF_NUM_ACQUISITIONS"
 #define LFGratingString                "LF_GRATING"
 #define LFGratingWavelengthString      "LF_GRATING_WAVELENGTH"
-#define LFEntranceFrontWidthString     "LF_ENTRANCE_FRONT_WIDTH"
+#define LFEntranceSideWidthString      "LF_ENTRANCE_SIDE_WIDTH"
 #define LFExitSelectedString           "LF_EXIT_SELECTED"
 #define LFExperimentNameString         "LF_EXPERIMENT_NAME"
 #define LFShutterModeString            "LF_SHUTTER_MODE"
 #define LFBackgroundFileString         "LF_BACKGROUND_FILE"
 #define LFBackgroundEnableString       "LF_BACKGROUND_ENABLE"
+
+typedef struct {
+    ELLNODE      node;
+    gcroot<String^> setting;
+    int     param;
+    asynParamType dataType;
+} settingMap;
 
 /** Driver for Princeton Instruments cameras using the LightField Automation software */
 class LightField : public ADDriver {
@@ -63,18 +72,22 @@ public:
     /* These are the methods that we override from ADDriver */
     virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
     virtual asynStatus writeFloat64(asynUser *pasynUser, epicsFloat64 value);
+    virtual asynStatus readEnum(asynUser *pasynUser, char *strings[], int values[], int severities[], 
+                            size_t nElements, size_t *nIn);
     virtual void setShutter(int open);
     virtual void report(FILE *fp, int details);
     void setAcquisitionComplete();
     void frameCallback(ImageDataSetReceivedEventArgs^ args);
+    void settingChangedCallback(SettingChangedEventArgs^ args);
 
 protected:
+    int LFGain_;
+    #define FIRST_LF_PARAM LFGain_
     int LFNumAccumulations_;
-    #define FIRST_LF_PARAM LFNumAccumulations_
     int LFNumAcquisitions_;
     int LFGrating_;
     int LFGratingWavelength_;
-    int LFEntranceFrontWidth_;
+    int LFEntranceSideWidth_;
     int LFExitSelected_;
     int LFExperimentName_;
     int LFShutterMode_;
@@ -87,11 +100,21 @@ private:
     gcroot<ILightFieldApplication^> Application_;
     gcroot<IExperiment^> Experiment_;
     asynStatus setExperimentInteger(String^ setting, epicsInt32 value);
+    asynStatus setExperimentInteger(int param, epicsInt32 value);
     asynStatus setExperimentDouble(String^ setting, epicsFloat64 value);
+    asynStatus setExperimentDouble(int param, epicsFloat64 value);
+    asynStatus setExperimentString(String^ setting, String^ value);
+    asynStatus getExperimentValue(String^ setting);
+    asynStatus getExperimentValue(int param);
+    asynStatus getExperimentValue(settingMap *ps);
+    asynStatus openExperiment(const char *experimentName);
     asynStatus setROI();
-    asynStatus getStatus();
     asynStatus startAcquire();
-    
+    asynStatus addSetting(int param, String^ setting, asynParamType dataType);
+    List<String^>^ buildFeatureList(String^ feature);
+    gcroot<List<String^>^> experimentList_;
+    gcroot<List<String^>^> gratingList_;
+    ELLLIST settingList_;
 };
 
 // We use a static variable to hold a pointer to the LightField driver object
@@ -110,6 +133,11 @@ void completionEventHandler(System::Object^ sender, ExperimentCompletedEventArgs
 void imageDataEventHandler(System::Object^ sender, ImageDataSetReceivedEventArgs^ args)
 {
     LightField_->frameCallback(args);
+}
+
+void settingChangedEventHandler(System::Object^ sender, SettingChangedEventArgs^ args)
+{
+    LightField_->settingChangedCallback(args);
 }
 
 
@@ -138,7 +166,8 @@ LightField::LightField(const char *portName, const char* experimentName,
              int priority, int stackSize)
 
     : ADDriver(portName, 1, NUM_LF_PARAMS, maxBuffers, maxMemory, 
-               0, 0,             /* No interfaces beyond those set in ADDriver.cpp */
+               asynEnumMask,             /* Interfaces beyond those set in ADDriver.cpp */
+               asynEnumMask,             /* Interfaces beyond those set in ADDriver.cpp */
                ASYN_CANBLOCK, 1, /* ASYN_CANBLOCK=1, ASYN_MULTIDEVICE=0, autoConnect=1 */
                priority, stackSize)
 
@@ -146,24 +175,36 @@ LightField::LightField(const char *portName, const char* experimentName,
     int status = asynSuccess;
     const char *functionName = "LightField";
 
+    createParam(LFGainString,                    asynParamInt32,   &LFGain_);
     createParam(LFNumAccumulationsString,        asynParamInt32,   &LFNumAccumulations_);
     createParam(LFNumAcquisitionsString,         asynParamInt32,   &LFNumAcquisitions_);
-    createParam(LFGratingString,                 asynParamOctet,   &LFGrating_);
+    createParam(LFGratingString,                 asynParamInt32,   &LFGrating_);
     createParam(LFGratingWavelengthString,     asynParamFloat64,   &LFGratingWavelength_);
-    createParam(LFEntranceFrontWidthString,      asynParamInt32,   &LFEntranceFrontWidth_);
+    createParam(LFEntranceSideWidthString,       asynParamInt32,   &LFEntranceSideWidth_);
     createParam(LFExitSelectedString,            asynParamInt32,   &LFExitSelected_);
-    createParam(LFExperimentNameString,          asynParamOctet,   &LFExperimentName_);
+    createParam(LFExperimentNameString,          asynParamInt32,   &LFExperimentName_);
     createParam(LFShutterModeString,             asynParamInt32,   &LFShutterMode_);
     createParam(LFBackgroundFileString,          asynParamOctet,   &LFBackgroundFile_);
     createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
+    
+    ellInit(&settingList_);
+    addSetting(ADMaxSizeX,          CameraSettings::SensorInformationActiveAreaWidth,                           asynParamInt32);
+    addSetting(ADMaxSizeY,          CameraSettings::SensorInformationActiveAreaHeight,                          asynParamInt32);
+    addSetting(ADAcquireTime,       CameraSettings::ShutterTimingExposureTime,                                  asynParamFloat64);
+    addSetting(ADNumImages,         ExperimentSettings::AcquisitionFramesToStore,                               asynParamInt32);
+    addSetting(ADNumExposures,      ExperimentSettings::OnlineProcessingFrameCombinationFramesCombined,         asynParamInt32);
+    addSetting(ADReverseX,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, asynParamInt32);
+    addSetting(ADReverseY,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically,   asynParamInt32);
+    addSetting(ADTriggerMode,       CameraSettings::HardwareIOTriggerSource,                                    asynParamInt32);
+    addSetting(ADTemperature,       CameraSettings::SensorTemperatureSetPoint,                                  asynParamFloat64);
+    addSetting(LFGain_,             CameraSettings::ReadoutControlAccumulations,                                asynParamInt32);
+    addSetting(LFNumAccumulations_, CameraSettings::ReadoutControlAccumulations,                                asynParamInt32);
+    addSetting(LFEntranceSideWidth_,SpectrometerSettings::OpticalPortEntranceSideWidth,                         asynParamInt32);
+    addSetting(LFExitSelected_,     SpectrometerSettings::OpticalPortExitSelected,                              asynParamInt32);
+    addSetting(LFShutterMode_,      CameraSettings::ShutterTimingMode,                                          asynParamInt32);
+    addSetting(LFBackgroundEnable_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionEnabled,           asynParamInt32);
+    addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,                              asynParamFloat64);
  
-    /* Read the state of the detector */
-    status = this->getStatus();
-    if (status) {
-        printf("%s:%s: unable to read detector status\n", driverName, functionName);
-        return;
-    }
-
     // options can include a list of files to open when launching LightField
     List<String^>^ options = gcnew List<String^>();
     Automation_ = gcnew PrincetonInstruments::LightField::Automation::Automation(true, options);   
@@ -174,20 +215,41 @@ LightField::LightField(const char *portName, const char* experimentName,
     // Get the experiment interface from the application
     Experiment_  = Application_->Experiment;
     
-    // Open the user-specified experiment, if any
-    if (experimentName && strlen(experimentName) > 0) {
+   // Tell the application to suppress prompts (overwrite file names, etc...)
+    Application_->UserInteractionManager->SuppressUserInteraction = true;
+
+    // Open the experiment
+    openExperiment(experimentName);
+
+    // Set the static object pointer
+    LightField_ = this;
+}
+
+asynStatus LightField::addSetting(int param, String^ setting, asynParamType dataType)
+{
+    settingMap *ps = new settingMap;
+    ps->param = param;
+    ps->setting = gcnew String(setting);
+    ps->dataType = dataType;
+    ellAdd(&settingList_, &ps->node);
+    return asynSuccess;
+}
+
+asynStatus LightField::openExperiment(const char *experimentName) 
+{
+    static const char *functionName = "openExperiment";
+    
+    //  It is legal to pass an empty string, in which case the default experiment is used
+    if (experimentName && (strlen(experimentName) > 0)) {
         Experiment_->Load(gcnew String (experimentName));
     }
-
-    // Tell the application to suppress prompts (overwrite file names, etc...)
-    Application_->UserInteractionManager->SuppressUserInteraction = true;
 
     // Try to connect to a camera
     bool bCameraFound = false;
     CString cameraName;
     // Look for a camera already added to the experiment
-    List<PrincetonInstruments::LightField::AddIns::IDevice^> experimentList = Experiment_->ExperimentDevices;        
-    for each(IDevice^% device in experimentList)
+    List<PrincetonInstruments::LightField::AddIns::IDevice^> deviceList = Experiment_->ExperimentDevices;        
+    for each(IDevice^% device in deviceList)
     {
         if (device->Type == DeviceType::Camera)
         {
@@ -204,33 +266,23 @@ LightField::LightField(const char *portName, const char* experimentName,
         asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
             "%s:%s: error, cannot find camera\n",
             driverName, functionName);
-        return;
+        return asynError;
     }
 
-    /* Set some default values for parameters */
-    int width = safe_cast<int>(Experiment_->GetValue(CameraSettings::SensorInformationActiveAreaWidth));
-    int height = safe_cast<int>(Experiment_->GetValue(CameraSettings::SensorInformationActiveAreaHeight));
+    setStringParam (ADManufacturer, "Princeton Instruments");
+    setStringParam (ADModel, cameraName);
 
-    setIntegerParam(ADMaxSizeX, width);
-    setIntegerParam(ADMaxSizeY, height);
-    status =  setStringParam (ADManufacturer, "Princeton Instruments");
-    status |= setStringParam (ADModel, cameraName);
-    status |= setIntegerParam(ADImageMode, ADImageSingle);
-    status |= setDoubleParam (ADAcquireTime, .1);
-    status |= setDoubleParam (ADAcquirePeriod, .5);
-    status |= setIntegerParam(ADNumImages, 1);
-    if (status) {
-        printf("%s:%s: unable to set camera parameters\n", driverName, functionName);
-        return;
-    }
-    
     // Connect the acquisition event handler       
-    Experiment_->ExperimentCompleted += gcnew 
-        System::EventHandler<ExperimentCompletedEventArgs^>(&completionEventHandler);
+    Experiment_->ExperimentCompleted += 
+        gcnew System::EventHandler<ExperimentCompletedEventArgs^>(&completionEventHandler);
 
     // Connect the image data event handler       
-    Experiment_->ImageDataSetReceived += gcnew 
-        System::EventHandler<ImageDataSetReceivedEventArgs^>(&imageDataEventHandler);
+    Experiment_->ImageDataSetReceived +=
+        gcnew System::EventHandler<ImageDataSetReceivedEventArgs^>(&imageDataEventHandler);
+
+    // Connect the setting changed event handler       
+    Experiment_->SettingChanged +=
+        gcnew System::EventHandler<SettingChangedEventArgs^>(&settingChangedEventHandler);
 
     // Enable online orientation corrections
     setExperimentInteger(ExperimentSettings::OnlineCorrectionsOrientationCorrectionEnabled, true);
@@ -240,8 +292,21 @@ LightField::LightField(const char *portName, const char* experimentName,
     setExperimentInteger(ExperimentSettings::FileNameGenerationAttachTime, false);
     setExperimentInteger(ExperimentSettings::FileNameGenerationAttachIncrement, false);
 
-    // Set the static object pointer
-    LightField_ = this;
+    experimentList_ = gcnew List<String^>(Experiment_->GetSavedExperiments());
+    gratingList_    = gcnew List<String^>(buildFeatureList(SpectrometerSettings::GratingSelected));
+    
+    List<String^>^ filterList = gcnew List<String^>;
+    filterList->Add(CameraSettings::SensorTemperatureReading);
+    Experiment_->FilterSettingChanged(filterList);
+    
+    // Read the settings from the camera
+    settingMap *ps = (settingMap *)ellFirst(&settingList_);
+    while (ps) {
+        getExperimentValue(ps);
+        ps = (settingMap *)ellNext(&ps->node);
+    }
+    
+    return asynSuccess;
 }
 
 
@@ -252,6 +317,28 @@ void LightField::setAcquisitionComplete()
     callParamCallbacks();
     unlock();
 }
+
+List<String^>^ LightField::buildFeatureList(String^ feature)
+{
+    List<String^>^ list = gcnew List<String^>;
+    if (Experiment_->Exists(feature)) {
+        IList<Object^>^ objList = Experiment_->GetCurrentCapabilities(feature);
+        for each(Object^% obj in objList) {
+          list->Add(dynamic_cast<String^>(obj));
+        }
+    }
+    return list;
+}
+
+void LightField::settingChangedCallback(SettingChangedEventArgs^ args)
+{
+    static const char *functionName = "settingChangedCallback";
+    
+    lock();
+    getExperimentValue(args->Setting);
+    unlock();
+}
+
 
 //_____________________________________________________________________________________________
 /** callback function that is called by XISL every frame at end of data transfer */
@@ -360,17 +447,6 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
     driverName, functionName);
 }
 
-asynStatus LightField::getStatus()
-{
-    short result;
-    const char *functionName = "getStatus";
-    double top, bottom, left, right;
-    long minX, minY, sizeX, sizeY, binX, binY;
-    
-    callParamCallbacks();
-    return(asynSuccess);
-}
-
 asynStatus LightField::startAcquire()
 {
     size_t len;
@@ -471,21 +547,45 @@ void LightField::setShutter(int open)
     }
 }
 
+asynStatus LightField::setExperimentInteger(int param, epicsInt32 value)
+{
+    settingMap *ps = (settingMap *)ellFirst(&settingList_);
+    while (ps) {
+        if (ps->param == param) {
+            return setExperimentInteger(ps->setting, value);
+        }
+        ps = (settingMap *)ellNext(&ps->node);
+    }
+    return asynError;
+}
+
 asynStatus LightField::setExperimentInteger(String^ setting, epicsInt32 value)
 {
     static const char *functionName = "setExperimentInteger";
     try {
         if (Experiment_->Exists(setting) &&
-            Experiment_->IsValid(setting, value))
+            ((setting == SpectrometerSettings::OpticalPortExitSelected) || Experiment_->IsValid(setting, value)))
             Experiment_->SetValue(setting, value);
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: value=%d, exception = %s\n", 
-            driverName, functionName, value, pEx->ToString());
+            "%s:%s: setting=%s, value=%d, exception = %s\n", 
+            driverName, functionName, (CString)setting, value, pEx->ToString());
         return asynError;
     }
     return asynSuccess;
+}
+
+asynStatus LightField::setExperimentDouble(int param, epicsFloat64 value)
+{
+    settingMap *ps = (settingMap *)ellFirst(&settingList_);
+    while (ps) {
+        if (ps->param == param) {
+            return setExperimentDouble(ps->setting, value);
+        }
+        ps = (settingMap *)ellNext(&ps->node);
+    }
+    return asynError;
 }
 
 asynStatus LightField::setExperimentDouble(String^ setting, epicsFloat64 value)
@@ -498,8 +598,88 @@ asynStatus LightField::setExperimentDouble(String^ setting, epicsFloat64 value)
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: value=%d, exception = %s\n", 
-            driverName, functionName, value, pEx->ToString());
+            "%s:%s: setting=%s, value=%f, exception = %s\n", 
+            driverName, functionName, (CString)setting, value, pEx->ToString());
+        return asynError;
+    }
+    return asynSuccess;
+}
+
+asynStatus LightField::setExperimentString(String^ setting, String^ value)
+{
+    static const char *functionName = "setExperimentString";
+    try {
+        if (Experiment_->Exists(setting) &&
+            ((setting == SpectrometerSettings::GratingSelected) || Experiment_->IsValid(setting, value)))
+            Experiment_->SetValue(setting, value);
+    }
+    catch(System::Exception^ pEx) {
+        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+            "%s:%s: setting=%s, value=%s, exception = %s\n", 
+            driverName, functionName, (CString)setting, (CString)value, pEx->ToString());
+        return asynError;
+    }
+    return asynSuccess;
+}
+
+
+asynStatus LightField::getExperimentValue(String^ setting)
+{
+    settingMap *ps = (settingMap *)ellFirst(&settingList_);
+    while (ps) {
+        if (ps->setting == setting) {
+            return getExperimentValue(ps);
+        }
+        ps = (settingMap *)ellNext(&ps->node);
+    }
+    return asynError;
+}
+
+asynStatus LightField::getExperimentValue(int param)
+{
+    settingMap *ps = (settingMap *)ellFirst(&settingList_);
+    while (ps) {
+        if (ps->param == param) {
+            return getExperimentValue(ps);
+        }
+        ps = (settingMap *)ellNext(&ps->node);
+    }
+    return asynError;
+}
+
+asynStatus LightField::getExperimentValue(settingMap *ps)
+{
+    static const char *functionName = "getExperimentValue";
+printf("%s:%s: ps=%p\n", driverName, functionName, ps);
+String^ temp=ps->setting;
+printf("%s:%s: setting=%s, param=%d, type=%d\n",
+driverName, functionName, (CString)temp, ps->param, ps->dataType);
+    try {
+        if (Experiment_->Exists(ps->setting)) {
+            switch (ps->dataType) {
+                case asynParamInt32: {
+                    epicsInt32 value = (epicsInt32)Experiment_->GetValue(ps->setting);
+                    setIntegerParam(ps->param, value);
+                    break;
+                }
+                case asynParamFloat64: {
+                    epicsFloat64 value = safe_cast<epicsFloat64>(Experiment_->GetValue(ps->setting));
+                    setDoubleParam(ps->param, value);
+                    break;
+                }
+                case asynParamOctet: {
+                    String^ value = safe_cast<String^>(Experiment_->GetValue(ps->setting));
+                    setStringParam(ps->param, (CString)value);
+                    break;
+                }
+                callParamCallbacks();
+            }
+        }
+    }
+    catch(System::Exception^ pEx) {
+        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+            "%s:%s: param=%d, exception = %s\n", 
+            driverName, functionName, ps->param, pEx->ToString());
         return asynError;
     }
     return asynSuccess;
@@ -517,7 +697,6 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
     int function = pasynUser->reason;
     int currentlyAcquiring;
     asynStatus status = asynSuccess;
-    int needReadStatus=1;
     const char* functionName="writeInt32";
 
     /* See if we are currently acquiring.  This must be done before the call to setIntegerParam below */
@@ -533,7 +712,6 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
         } 
         if (!value && currentlyAcquiring) {
             /* This was a command to stop acquisition */
-            /* Send the stop event */
             Experiment_->Stop();
         }
     } else if ( (function == ADBinX) ||
@@ -543,44 +721,30 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 (function == ADSizeX) ||
                 (function == ADSizeY)) {
         this->setROI();
-    } else if (function == ADNumImages) {
-        status = setExperimentInteger(ExperimentSettings::AcquisitionFramesToStore, value);
-    } else if (function == ADNumExposures) {
-        status = setExperimentInteger(ExperimentSettings::OnlineProcessingFrameCombinationFramesCombined, value);
-    } else if (function == LFNumAccumulations_) {
-        status = setExperimentInteger(CameraSettings::ReadoutControlAccumulations, value);
-    } else if (function == ADReverseX) {
-        status = setExperimentInteger(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, value);
-    } else if (function == ADReverseY) {
-        status = setExperimentInteger(ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically, value);
-    } else if (function == ADTriggerMode) {
-        PrincetonInstruments::LightField::AddIns::TriggerSource trigger;            
-        if (value == ADTriggerInternal) 
-            trigger = TriggerSource::Internal;
-        else 
-            trigger = TriggerSource::External;
-        status = setExperimentInteger(CameraSettings::HardwareIOTriggerSource, (int)trigger);
-    } else if (function == LFShutterMode_) {
-        status = setExperimentInteger(CameraSettings::ShutterTimingMode, value);
-    } else if (function == LFEntranceFrontWidth_) {
-        status = setExperimentInteger(SpectrometerSettings::OpticalPortEntranceFrontWidth, value);
-    } else if (function == LFExitSelected_) {
-        PrincetonInstruments::LightField::AddIns::OpticalPortLocation location;
-        if (value == 0) 
-            location = OpticalPortLocation::SideExit;
-        else
-            location = OpticalPortLocation::FrontExit;
-        status = setExperimentInteger(SpectrometerSettings::OpticalPortExitSelected, (int)location);
-    } else if (function == LFBackgroundEnable_) {
-        status = setExperimentInteger(ExperimentSettings::OnlineCorrectionsBackgroundCorrectionEnabled, value);
+    } else if ( (function == ADNumImages) ||
+                (function == ADNumExposures) ||
+                (function == LFNumAccumulations_) ||
+                (function == ADReverseX) ||
+                (function == ADReverseY) ||
+                (function == ADTriggerMode) ||
+                (function == LFGain_) ||
+                (function == LFShutterMode_) ||
+                (function == LFEntranceSideWidth_) ||
+                (function == LFExitSelected_) ||
+                (function == LFBackgroundEnable_)) {
+        status = setExperimentInteger(function, value); 
+     } else if (function == LFGrating_) {
+        List<String^>^ list = gratingList_;
+        String^ grating = list[value];
+        status = setExperimentString(SpectrometerSettings::GratingSelected, grating);
+    } else if (function == LFExperimentName_) {
+        List<String^>^ list = experimentList_;
+        String^ experimentName = list[value];
+        status = openExperiment((CString)experimentName);
     } else {
-        needReadStatus = 0;
         /* If this parameter belongs to a base class call its method */
         if (function < FIRST_LF_PARAM) status = ADDriver::writeInt32(pasynUser, value);
     }
-    
-    /* Read the actual state of the detector after this operation if anything could have changed */
-    if (needReadStatus) this->getStatus();
     
     /* Do callbacks so higher layers see any changes */
     callParamCallbacks();
@@ -606,7 +770,6 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
 {
     int function = pasynUser->reason;
     asynStatus status = asynSuccess;
-    int needReadStatus=1;
     const char* functionName="writeFloat64";
 
     /* Set the parameter and readback in the parameter library.  This may be overwritten when we read back the
@@ -616,25 +779,16 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
     /* Changing any of the following parameters requires recomputing the base image */
     if (function == ADAcquireTime) {
         // LightField units are ms 
-        status = setExperimentDouble(CameraSettings::ShutterTimingExposureTime, value*1000.);
-    } else if (function == ADTemperature) {
-        status = setExperimentDouble(CameraSettings::SensorTemperatureSetPoint, value);
-    } else if (function == LFGratingWavelength_) {
-        status = setExperimentDouble(SpectrometerSettings::GratingCenterWavelength, value);
-    } else if (function == ADGain) {
-        PrincetonInstruments::LightField::AddIns::AdcGain gain;
-        if (value <= 1.5)      gain = AdcGain::Low;
-        else if (value <= 2.5) gain = AdcGain::Medium;
-        else                   gain = AdcGain::High;
-        status = setExperimentInteger(CameraSettings::AdcAnalogGain, (int)gain);
+        value = value*1000;
+    }
+    if ((function == ADAcquireTime) ||
+        (function == ADTemperature) ||
+        (function == LFGratingWavelength_)) {
+        status = setExperimentDouble(function, value);
     } else {
-        needReadStatus = 0;
         /* If this parameter belongs to a base class call its method */
         if (function < FIRST_LF_PARAM) status = ADDriver::writeFloat64(pasynUser, value);
     }
-
-    /* Read the actual state of the detector after this operation */
-    if (needReadStatus) this->getStatus();
 
     /* Do callbacks so higher layers see any changes */
     callParamCallbacks();
@@ -649,6 +803,44 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
     return status;
 }
 
+asynStatus LightField::readEnum(asynUser *pasynUser, char *strings[], int values[], int severities[], 
+                            size_t nElements, size_t *nIn)
+{
+  int index = pasynUser->reason;
+  static const char *functionName = "readEnum";
+  List<String^>^ list;
+
+  *nIn = 0;
+  if (index == LFExperimentName_) {
+    list = experimentList_;
+  }
+  else if (index == LFGrating_) {
+    list = gratingList_;
+  }
+  else {
+    return asynError;
+  }
+
+  if (list->Count > 0) {
+    for each(String^% str in list) {
+      CString enumString = str;
+      if (strings[*nIn]) free(strings[*nIn]);
+      strings[*nIn] = epicsStrDup(enumString);
+      values[*nIn] = (int)*nIn;
+      severities[*nIn] = 0;
+      (*nIn)++;
+      if (*nIn >= nElements) break;
+    }
+  }
+  else {
+    strings[0] = epicsStrDup("N.A. 0");
+    values[0] = 0;
+    severities[0] = 0;
+    (*nIn) = 1;
+  }
+  
+  return asynSuccess;
+}
 
 
 /** Report status of the driver.
