@@ -197,7 +197,8 @@ LightField::LightField(const char *portName, const char* experimentName,
     addSetting(ADReverseY,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically,   asynParamInt32);
     addSetting(ADTriggerMode,       CameraSettings::HardwareIOTriggerSource,                                    asynParamInt32);
     addSetting(ADTemperature,       CameraSettings::SensorTemperatureSetPoint,                                  asynParamFloat64);
-    addSetting(LFGain_,             CameraSettings::ReadoutControlAccumulations,                                asynParamInt32);
+    addSetting(ADTemperatureActual, CameraSettings::SensorTemperatureReading,                                   asynParamFloat64);
+    addSetting(LFGain_,             CameraSettings::AdcAnalogGain,                                              asynParamInt32);
     addSetting(LFNumAccumulations_, CameraSettings::ReadoutControlAccumulations,                                asynParamInt32);
     addSetting(LFEntranceSideWidth_,SpectrometerSettings::OpticalPortEntranceSideWidth,                         asynParamInt32);
     addSetting(LFExitSelected_,     SpectrometerSettings::OpticalPortExitSelected,                              asynParamInt32);
@@ -294,17 +295,16 @@ asynStatus LightField::openExperiment(const char *experimentName)
 
     experimentList_ = gcnew List<String^>(Experiment_->GetSavedExperiments());
     gratingList_    = gcnew List<String^>(buildFeatureList(SpectrometerSettings::GratingSelected));
-    
+        
+    // Read the settings from the camera and ask for callbacks on each setting
     List<String^>^ filterList = gcnew List<String^>;
-    filterList->Add(CameraSettings::SensorTemperatureReading);
-    Experiment_->FilterSettingChanged(filterList);
-    
-    // Read the settings from the camera
     settingMap *ps = (settingMap *)ellFirst(&settingList_);
     while (ps) {
         getExperimentValue(ps);
+        filterList->Add(ps->setting);
         ps = (settingMap *)ellNext(&ps->node);
     }
+    Experiment_->FilterSettingChanged(filterList);
     
     return asynSuccess;
 }
@@ -650,36 +650,57 @@ asynStatus LightField::getExperimentValue(int param)
 asynStatus LightField::getExperimentValue(settingMap *ps)
 {
     static const char *functionName = "getExperimentValue";
-printf("%s:%s: ps=%p\n", driverName, functionName, ps);
-String^ temp=ps->setting;
-printf("%s:%s: setting=%s, param=%d, type=%d\n",
-driverName, functionName, (CString)temp, ps->param, ps->dataType);
+    String^ setting = ps->setting;
+    CString settingName = (CString)setting;
+    
     try {
-        if (Experiment_->Exists(ps->setting)) {
+        if (Experiment_->Exists(setting)) {
             switch (ps->dataType) {
                 case asynParamInt32: {
-                    epicsInt32 value = (epicsInt32)Experiment_->GetValue(ps->setting);
+                    epicsInt32 value;
+                    if (dynamic_cast<Int64^>(Experiment_->GetValue(setting))) {
+                        __int64 temp = safe_cast<__int64>(Experiment_->GetValue(setting));
+                        value = (epicsInt32)temp;
+                    }
+                    else if (dynamic_cast<Int32^>(Experiment_->GetValue(setting))) {
+                        value = safe_cast<epicsInt32>(Experiment_->GetValue(setting));
+                    }
+                    else if (dynamic_cast<Boolean^>(Experiment_->GetValue(setting))) {
+                        bool temp = safe_cast<bool>(Experiment_->GetValue(setting));
+                        value = (epicsInt32)temp;
+                    }
+                    asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                        "%s:%s: setting=%s, param=%d, value=%d\n",
+                        driverName, functionName, settingName, ps->param, value);
                     setIntegerParam(ps->param, value);
                     break;
                 }
                 case asynParamFloat64: {
-                    epicsFloat64 value = safe_cast<epicsFloat64>(Experiment_->GetValue(ps->setting));
+                    epicsFloat64 value = safe_cast<epicsFloat64>(Experiment_->GetValue(setting));
+                    // Convert exposure time from ms to s
+                    if (setting == CameraSettings::ShutterTimingExposureTime) value = value/1000.;
+                    asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                        "%s:%s: setting=%s, param=%d, value=%f\n",
+                        driverName, functionName, settingName, ps->param, value);
                     setDoubleParam(ps->param, value);
                     break;
                 }
                 case asynParamOctet: {
-                    String^ value = safe_cast<String^>(Experiment_->GetValue(ps->setting));
+                    String^ value = safe_cast<String^>(Experiment_->GetValue(setting));
+                    asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                        "%s:%s: setting=%s, param=%d, value=%s\n",
+                        driverName, functionName, settingName, ps->param, (CString)value);
                     setStringParam(ps->param, (CString)value);
                     break;
                 }
-                callParamCallbacks();
             }
+            callParamCallbacks();
         }
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: param=%d, exception = %s\n", 
-            driverName, functionName, ps->param, pEx->ToString());
+            "%s:%s: setting=%s, param=%d, exception = %s\n", 
+            driverName, functionName, settingName, ps->param, pEx->ToString());
         return asynError;
     }
     return asynSuccess;
