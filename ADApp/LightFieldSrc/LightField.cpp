@@ -55,11 +55,21 @@ static const char *driverName = "LightField";
 #define LFBackgroundFileString         "LF_BACKGROUND_FILE"
 #define LFBackgroundEnableString       "LF_BACKGROUND_ENABLE"
 
+typedef enum {
+    LFSettingInt32,
+    LFSettingInt64,
+    LFSettingEnum,
+    LFSettingBoolean,
+    LFSettingDouble,
+    LFSettingString
+} LFSetting_t;
+
 typedef struct {
     ELLNODE      node;
     gcroot<String^> setting;
-    int     param;
-    asynParamType dataType;
+    int             param;
+    asynParamType   epicsType;
+    LFSetting_t     LFType;
 } settingMap;
 
 /** Driver for Princeton Instruments cameras using the LightField Automation software */
@@ -110,7 +120,7 @@ private:
     asynStatus openExperiment(const char *experimentName);
     asynStatus setROI();
     asynStatus startAcquire();
-    asynStatus addSetting(int param, String^ setting, asynParamType dataType);
+    asynStatus addSetting(int param, String^ setting, asynParamType epicsType, LFSetting_t LFType);
     List<String^>^ buildFeatureList(String^ feature);
     gcroot<List<String^>^> experimentList_;
     gcroot<List<String^>^> gratingList_;
@@ -188,23 +198,40 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
     
     ellInit(&settingList_);
-    addSetting(ADMaxSizeX,          CameraSettings::SensorInformationActiveAreaWidth,                           asynParamInt32);
-    addSetting(ADMaxSizeY,          CameraSettings::SensorInformationActiveAreaHeight,                          asynParamInt32);
-    addSetting(ADAcquireTime,       CameraSettings::ShutterTimingExposureTime,                                  asynParamFloat64);
-    addSetting(ADNumImages,         ExperimentSettings::AcquisitionFramesToStore,                               asynParamInt32);
-    addSetting(ADNumExposures,      ExperimentSettings::OnlineProcessingFrameCombinationFramesCombined,         asynParamInt32);
-    addSetting(ADReverseX,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, asynParamInt32);
-    addSetting(ADReverseY,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically,   asynParamInt32);
-    addSetting(ADTriggerMode,       CameraSettings::HardwareIOTriggerSource,                                    asynParamInt32);
-    addSetting(ADTemperature,       CameraSettings::SensorTemperatureSetPoint,                                  asynParamFloat64);
-    addSetting(ADTemperatureActual, CameraSettings::SensorTemperatureReading,                                   asynParamFloat64);
-    addSetting(LFGain_,             CameraSettings::AdcAnalogGain,                                              asynParamInt32);
-    addSetting(LFNumAccumulations_, CameraSettings::ReadoutControlAccumulations,                                asynParamInt32);
-    addSetting(LFEntranceSideWidth_,SpectrometerSettings::OpticalPortEntranceSideWidth,                         asynParamInt32);
-    addSetting(LFExitSelected_,     SpectrometerSettings::OpticalPortExitSelected,                              asynParamInt32);
-    addSetting(LFShutterMode_,      CameraSettings::ShutterTimingMode,                                          asynParamInt32);
-    addSetting(LFBackgroundEnable_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionEnabled,           asynParamInt32);
-    addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,                              asynParamFloat64);
+    addSetting(ADMaxSizeX,          CameraSettings::SensorInformationActiveAreaWidth,                           
+                asynParamInt32, LFSettingInt32);
+    addSetting(ADMaxSizeY,          CameraSettings::SensorInformationActiveAreaHeight,                          
+                asynParamInt32, LFSettingInt32);
+    addSetting(ADAcquireTime,       CameraSettings::ShutterTimingExposureTime,                                  
+                asynParamFloat64, LFSettingDouble);
+    addSetting(ADNumImages,         ExperimentSettings::AcquisitionFramesToStore,                               
+                asynParamInt32, LFSettingInt64);
+    addSetting(ADNumExposures,      ExperimentSettings::OnlineProcessingFrameCombinationFramesCombined,         
+                asynParamInt32, LFSettingInt64);
+    addSetting(ADReverseX,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, 
+                asynParamInt32, LFSettingBoolean);
+    addSetting(ADReverseY,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically,   
+                asynParamInt32, LFSettingBoolean);
+    addSetting(ADTriggerMode,       CameraSettings::HardwareIOTriggerSource,                                    
+                asynParamInt32, LFSettingEnum);
+    addSetting(ADTemperature,       CameraSettings::SensorTemperatureSetPoint,                                  
+                asynParamFloat64, LFSettingDouble);
+    addSetting(ADTemperatureActual, CameraSettings::SensorTemperatureReading,                                   
+                asynParamFloat64, LFSettingDouble);
+    addSetting(LFGain_,             CameraSettings::AdcAnalogGain,                                              
+                asynParamInt32, LFSettingEnum);
+    addSetting(LFNumAccumulations_, CameraSettings::ReadoutControlAccumulations,                                
+                asynParamInt32, LFSettingInt64);
+    addSetting(LFEntranceSideWidth_,SpectrometerSettings::OpticalPortEntranceSideWidth,                         
+                asynParamInt32, LFSettingInt32);
+    addSetting(LFExitSelected_,     SpectrometerSettings::OpticalPortExitSelected,                              
+                asynParamInt32, LFSettingEnum);
+    addSetting(LFShutterMode_,      CameraSettings::ShutterTimingMode,                                          
+                asynParamInt32, LFSettingEnum);
+    addSetting(LFBackgroundEnable_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionEnabled,           
+                asynParamInt32, LFSettingBoolean);
+    addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,                              
+                asynParamFloat64, LFSettingDouble);
  
     // options can include a list of files to open when launching LightField
     List<String^>^ options = gcnew List<String^>();
@@ -226,12 +253,13 @@ LightField::LightField(const char *portName, const char* experimentName,
     LightField_ = this;
 }
 
-asynStatus LightField::addSetting(int param, String^ setting, asynParamType dataType)
+asynStatus LightField::addSetting(int param, String^ setting, asynParamType epicsType, LFSetting_t LFType)
 {
     settingMap *ps = new settingMap;
     ps->param = param;
     ps->setting = gcnew String(setting);
-    ps->dataType = dataType;
+    ps->epicsType = epicsType;
+    ps->LFType = LFType;
     ellAdd(&settingList_, &ps->node);
     return asynSuccess;
 }
@@ -651,51 +679,69 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
 {
     static const char *functionName = "getExperimentValue";
     String^ setting = ps->setting;
-    CString settingName = (CString)setting;
+    CString settingName = CString(setting);
     
+    if (!Experiment_->Exists(setting)) return asynSuccess;
+
+    Object^ obj = Experiment_->GetValue(ps->setting);
+
     try {
-        if (Experiment_->Exists(setting)) {
-            switch (ps->dataType) {
-                case asynParamInt32: {
-                    epicsInt32 value;
-                    if (dynamic_cast<Int64^>(Experiment_->GetValue(setting))) {
-                        __int64 temp = safe_cast<__int64>(Experiment_->GetValue(setting));
+        switch (ps->epicsType) {
+            case asynParamInt32: {
+                epicsInt32 value;
+                switch (ps->LFType) {
+                    case LFSettingInt64: {
+                        __int64 temp = safe_cast<__int64>(obj);
                         value = (epicsInt32)temp;
+                        break;
                     }
-                    else if (dynamic_cast<Int32^>(Experiment_->GetValue(setting))) {
-                        value = safe_cast<epicsInt32>(Experiment_->GetValue(setting));
-                    }
-                    else if (dynamic_cast<Boolean^>(Experiment_->GetValue(setting))) {
-                        bool temp = safe_cast<bool>(Experiment_->GetValue(setting));
+                    case LFSettingInt32: {
+                        __int32 temp = safe_cast<__int32>(obj);
                         value = (epicsInt32)temp;
+                        break;
                     }
-                    asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
-                        "%s:%s: setting=%s, param=%d, value=%d\n",
-                        driverName, functionName, settingName, ps->param, value);
-                    setIntegerParam(ps->param, value);
-                    break;
+                    case LFSettingBoolean: {
+                        bool temp = safe_cast<bool>(obj);
+                        value = (epicsInt32)temp;
+                        break;
+                    }
+                    case LFSettingEnum: {
+                        __int32 temp = safe_cast<__int32>(obj);
+                        value = (epicsInt32)temp;
+                        break;
+                    }
+                    default:
+                        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+                            "%s:%s: setting=%s, asynInt32, unknown LFSetting_t=%d\n",
+                            driverName, functionName, ps->LFType);
+                        break;
                 }
-                case asynParamFloat64: {
-                    epicsFloat64 value = safe_cast<epicsFloat64>(Experiment_->GetValue(setting));
-                    // Convert exposure time from ms to s
-                    if (setting == CameraSettings::ShutterTimingExposureTime) value = value/1000.;
-                    asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
-                        "%s:%s: setting=%s, param=%d, value=%f\n",
-                        driverName, functionName, settingName, ps->param, value);
-                    setDoubleParam(ps->param, value);
-                    break;
-                }
-                case asynParamOctet: {
-                    String^ value = safe_cast<String^>(Experiment_->GetValue(setting));
-                    asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
-                        "%s:%s: setting=%s, param=%d, value=%s\n",
-                        driverName, functionName, settingName, ps->param, (CString)value);
-                    setStringParam(ps->param, (CString)value);
-                    break;
-                }
+                asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                    "%s:%s: setting=%s, param=%d, value=%d\n",
+                    driverName, functionName, settingName, ps->param, value);
+                setIntegerParam(ps->param, value);
+                break;
             }
-            callParamCallbacks();
+            case asynParamFloat64: {
+                epicsFloat64 value = safe_cast<epicsFloat64>(obj);
+                // Convert exposure time from ms to s
+                if (setting == CameraSettings::ShutterTimingExposureTime) value = value/1000.;
+                asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                    "%s:%s: setting=%s, param=%d, value=%f\n",
+                    driverName, functionName, settingName, ps->param, value);
+                setDoubleParam(ps->param, value);
+                break;
+            }
+            case asynParamOctet: {
+                String^ value = safe_cast<String^>(obj);
+                asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                    "%s:%s: setting=%s, param=%d, value=%s\n",
+                    driverName, functionName, settingName, ps->param, (CString)value);
+                setStringParam(ps->param, (CString)value);
+                break;
+            }
         }
+        callParamCallbacks();
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
