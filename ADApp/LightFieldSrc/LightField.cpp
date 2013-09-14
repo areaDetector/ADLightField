@@ -54,6 +54,10 @@ static const char *driverName = "LightField";
 #define LFShutterModeString            "LF_SHUTTER_MODE"
 #define LFBackgroundFileString         "LF_BACKGROUND_FILE"
 #define LFBackgroundEnableString       "LF_BACKGROUND_ENABLE"
+#define LFGatingModeString             "LF_GATING_MODE"
+#define LFTriggerFrequencyString       "LF_TRIGGER_FREQUENCY"
+#define LFGateWidthString              "LF_GATE_WIDTH"
+#define LFGateDelayString              "LF_GATE_DELAY"
 
 typedef enum {
     LFSettingInt32,
@@ -61,15 +65,18 @@ typedef enum {
     LFSettingEnum,
     LFSettingBoolean,
     LFSettingDouble,
-    LFSettingString
+    LFSettingString,
+    LFSettingPulseWidth,
+    LFSettingPulseDelay
 } LFSetting_t;
 
 typedef struct {
     ELLNODE      node;
     gcroot<String^> setting;
-    int             param;
+    int             epicsParam;
     asynParamType   epicsType;
     LFSetting_t     LFType;
+    bool            exists;
 } settingMap;
 
 /** Driver for Princeton Instruments cameras using the LightField Automation software */
@@ -103,7 +110,11 @@ protected:
     int LFShutterMode_;
     int LFBackgroundFile_;
     int LFBackgroundEnable_;
-    #define LAST_LF_PARAM LFBackgroundEnable_
+    int LFGatingMode_;
+    int LFTriggerFrequency_;
+    int LFGateWidth_;
+    int LFGateDelay_;
+    #define LAST_LF_PARAM LFGateDelay_
          
 private:                               
     gcroot<PrincetonInstruments::LightField::Automation::Automation ^> Automation_;
@@ -196,6 +207,9 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFShutterModeString,             asynParamInt32,   &LFShutterMode_);
     createParam(LFBackgroundFileString,          asynParamOctet,   &LFBackgroundFile_);
     createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
+    createParam(LFGatingModeString,              asynParamInt32,   &LFGatingMode_);
+    createParam(LFTriggerFrequencyString,      asynParamFloat64,   &LFTriggerFrequency_);
+    createParam(LFGateDelayString,             asynParamFloat64,   &LFGateDelay_);
     
     ellInit(&settingList_);
     addSetting(ADMaxSizeX,          CameraSettings::SensorInformationActiveAreaWidth,                           
@@ -232,6 +246,14 @@ LightField::LightField(const char *portName, const char* experimentName,
                 asynParamInt32, LFSettingBoolean);
     addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,                              
                 asynParamFloat64, LFSettingDouble);
+    addSetting(LFGatingMode_,       CameraSettings::IntensifierGatingMode,                              
+                asynParamInt32, LFSettingEnum);
+    addSetting(LFTriggerFrequency_, CameraSettings::HardwareIOTriggerFrequency,                              
+                asynParamFloat64, LFSettingDouble);
+    addSetting(LFGateWidth_,        CameraSettings::IntensifierGatingRepetitiveGate,                              
+                asynParamFloat64, LFSettingPulseWidth);
+    addSetting(LFGateDelay_,        CameraSettings::IntensifierGatingRepetitiveGate,                              
+                asynParamFloat64, LFSettingPulseDelay);
  
     // options can include a list of files to open when launching LightField
     List<String^>^ options = gcnew List<String^>();
@@ -256,7 +278,7 @@ LightField::LightField(const char *portName, const char* experimentName,
 asynStatus LightField::addSetting(int param, String^ setting, asynParamType epicsType, LFSetting_t LFType)
 {
     settingMap *ps = new settingMap;
-    ps->param = param;
+    ps->epicsParam = param;
     ps->setting = gcnew String(setting);
     ps->epicsType = epicsType;
     ps->LFType = LFType;
@@ -328,8 +350,11 @@ asynStatus LightField::openExperiment(const char *experimentName)
     List<String^>^ filterList = gcnew List<String^>;
     settingMap *ps = (settingMap *)ellFirst(&settingList_);
     while (ps) {
-        getExperimentValue(ps);
-        filterList->Add(ps->setting);
+        ps->exists = Experiment_->Exists(ps->setting);
+        if (ps->exists) {
+            getExperimentValue(ps);
+            filterList->Add(ps->setting);
+        }
         ps = (settingMap *)ellNext(&ps->node);
     }
     Experiment_->FilterSettingChanged(filterList);
@@ -579,7 +604,7 @@ asynStatus LightField::setExperimentInteger(int param, epicsInt32 value)
 {
     settingMap *ps = (settingMap *)ellFirst(&settingList_);
     while (ps) {
-        if (ps->param == param) {
+        if (ps->epicsParam == param) {
             return setExperimentInteger(ps->setting, value);
         }
         ps = (settingMap *)ellNext(&ps->node);
@@ -608,7 +633,7 @@ asynStatus LightField::setExperimentDouble(int param, epicsFloat64 value)
 {
     settingMap *ps = (settingMap *)ellFirst(&settingList_);
     while (ps) {
-        if (ps->param == param) {
+        if (ps->epicsParam == param) {
             return setExperimentDouble(ps->setting, value);
         }
         ps = (settingMap *)ellNext(&ps->node);
@@ -667,7 +692,7 @@ asynStatus LightField::getExperimentValue(int param)
 {
     settingMap *ps = (settingMap *)ellFirst(&settingList_);
     while (ps) {
-        if (ps->param == param) {
+        if (ps->epicsParam == param) {
             return getExperimentValue(ps);
         }
         ps = (settingMap *)ellNext(&ps->node);
@@ -681,7 +706,7 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
     String^ setting = ps->setting;
     CString settingName = CString(setting);
     
-    if (!Experiment_->Exists(setting)) return asynSuccess;
+    if (!ps->exists) return asynSuccess;
 
     Object^ obj = Experiment_->GetValue(ps->setting);
 
@@ -718,8 +743,8 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
                 }
                 asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
                     "%s:%s: setting=%s, param=%d, value=%d\n",
-                    driverName, functionName, settingName, ps->param, value);
-                setIntegerParam(ps->param, value);
+                    driverName, functionName, settingName, ps->epicsParam, value);
+                setIntegerParam(ps->epicsParam, value);
                 break;
             }
             case asynParamFloat64: {
@@ -728,16 +753,16 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
                 if (setting == CameraSettings::ShutterTimingExposureTime) value = value/1000.;
                 asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
                     "%s:%s: setting=%s, param=%d, value=%f\n",
-                    driverName, functionName, settingName, ps->param, value);
-                setDoubleParam(ps->param, value);
+                    driverName, functionName, settingName, ps->epicsParam, value);
+                setDoubleParam(ps->epicsParam, value);
                 break;
             }
             case asynParamOctet: {
                 String^ value = safe_cast<String^>(obj);
                 asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
                     "%s:%s: setting=%s, param=%d, value=%s\n",
-                    driverName, functionName, settingName, ps->param, (CString)value);
-                setStringParam(ps->param, (CString)value);
+                    driverName, functionName, settingName, ps->epicsParam, (CString)value);
+                setStringParam(ps->epicsParam, (CString)value);
                 break;
             }
         }
@@ -746,7 +771,7 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
             "%s:%s: setting=%s, param=%d, exception = %s\n", 
-            driverName, functionName, settingName, ps->param, pEx->ToString());
+            driverName, functionName, settingName, ps->epicsParam, pEx->ToString());
         return asynError;
     }
     return asynSuccess;
@@ -798,7 +823,8 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 (function == LFShutterMode_) ||
                 (function == LFEntranceSideWidth_) ||
                 (function == LFExitSelected_) ||
-                (function == LFBackgroundEnable_)) {
+                (function == LFBackgroundEnable_) ||
+                (function == LFGatingMode_) ) {
         status = setExperimentInteger(function, value); 
      } else if (function == LFGrating_) {
         List<String^>^ list = gratingList_;
@@ -850,9 +876,14 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
     }
     if ((function == ADAcquireTime) ||
         (function == ADTemperature) ||
-        (function == LFGratingWavelength_)) {
+        (function == LFGratingWavelength_) ||
+        (function == LFTriggerFrequency_))
         status = setExperimentDouble(function, value);
-    } else {
+    else if (function == LFGateWidth_) {
+    }
+    else if (function == LFGateDelay_) {
+    } 
+    else {
         /* If this parameter belongs to a base class call its method */
         if (function < FIRST_LF_PARAM) status = ADDriver::writeFloat64(pasynUser, value);
     }
