@@ -477,6 +477,7 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
   pImage->uniqueId = arrayCounter;
   epicsTimeGetCurrent(&currentTime);
   pImage->timeStamp = currentTime.secPastEpoch + currentTime.nsec / 1.e9;
+  updateTimeStamp(&pImage->epicsTS);
 
   /* Get any attributes that have been defined for this driver */
   getAttributes(pImage->pAttributeList);
