@@ -1,10 +1,17 @@
-To Do in LightField driver
+          To Do in LightField driver
 
-Update actual settings (temperature, etc.)
+Why does it crash on my laptop?
+
+ROI readbacks
+
+Synchro timing parameters
+
+Readbacks of experiment, grating.  Driver and medm.
 
 Number of accumulations
 
-Do enum callbacks
+Background path, file
 
 Acquire background
+
 Apply background
