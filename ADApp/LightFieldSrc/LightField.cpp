@@ -66,8 +66,7 @@ typedef enum {
     LFSettingBoolean,
     LFSettingDouble,
     LFSettingString,
-    LFSettingPulseWidth,
-    LFSettingPulseDelay
+    LFSettingPulse,
 } LFSetting_t;
 
 typedef struct {
@@ -120,10 +119,13 @@ private:
     gcroot<PrincetonInstruments::LightField::Automation::Automation ^> Automation_;
     gcroot<ILightFieldApplication^> Application_;
     gcroot<IExperiment^> Experiment_;
+    settingMap* findSettingMap(String^ setting);
+    settingMap* findSettingMap(int param);
     asynStatus setExperimentInteger(String^ setting, epicsInt32 value);
     asynStatus setExperimentInteger(int param, epicsInt32 value);
     asynStatus setExperimentDouble(String^ setting, epicsFloat64 value);
     asynStatus setExperimentDouble(int param, epicsFloat64 value);
+    asynStatus setExperimentPulse(int param, double width, double delay);
     asynStatus setExperimentString(String^ setting, String^ value);
     asynStatus getExperimentValue(String^ setting);
     asynStatus getExperimentValue(int param);
@@ -209,6 +211,7 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
     createParam(LFGatingModeString,              asynParamInt32,   &LFGatingMode_);
     createParam(LFTriggerFrequencyString,      asynParamFloat64,   &LFTriggerFrequency_);
+    createParam(LFGateWidthString,             asynParamFloat64,   &LFGateWidth_);
     createParam(LFGateDelayString,             asynParamFloat64,   &LFGateDelay_);
     
     ellInit(&settingList_);
@@ -251,9 +254,7 @@ LightField::LightField(const char *portName, const char* experimentName,
     addSetting(LFTriggerFrequency_, CameraSettings::HardwareIOTriggerFrequency,                              
                 asynParamFloat64, LFSettingDouble);
     addSetting(LFGateWidth_,        CameraSettings::IntensifierGatingRepetitiveGate,                              
-                asynParamFloat64, LFSettingPulseWidth);
-    addSetting(LFGateDelay_,        CameraSettings::IntensifierGatingRepetitiveGate,                              
-                asynParamFloat64, LFSettingPulseDelay);
+                asynParamFloat64, LFSettingPulse);
  
     // options can include a list of files to open when launching LightField
     List<String^>^ options = gcnew List<String^>();
@@ -601,14 +602,35 @@ void LightField::setShutter(int open)
     }
 }
 
-asynStatus LightField::setExperimentInteger(int param, epicsInt32 value)
+settingMap* LightField::findSettingMap(int param)
 {
     settingMap *ps = (settingMap *)ellFirst(&settingList_);
     while (ps) {
         if (ps->epicsParam == param) {
-            return setExperimentInteger(ps->setting, value);
+            return ps;
         }
         ps = (settingMap *)ellNext(&ps->node);
+    }
+    return 0;
+}
+
+settingMap* LightField::findSettingMap(String^ setting)
+{
+    settingMap *ps = (settingMap *)ellFirst(&settingList_);
+    while (ps) {
+        if (ps->setting == setting) {
+            return ps;
+        }
+        ps = (settingMap *)ellNext(&ps->node);
+    }
+    return 0;
+}
+
+asynStatus LightField::setExperimentInteger(int param, epicsInt32 value)
+{
+    settingMap *ps = findSettingMap(param);
+    if (ps) {
+        return setExperimentInteger(ps->setting, value);
     }
     return asynError;
 }
@@ -632,12 +654,9 @@ asynStatus LightField::setExperimentInteger(String^ setting, epicsInt32 value)
 
 asynStatus LightField::setExperimentDouble(int param, epicsFloat64 value)
 {
-    settingMap *ps = (settingMap *)ellFirst(&settingList_);
-    while (ps) {
-        if (ps->epicsParam == param) {
-            return setExperimentDouble(ps->setting, value);
-        }
-        ps = (settingMap *)ellNext(&ps->node);
+    settingMap *ps = findSettingMap(param);
+    if (ps) {
+        return setExperimentDouble(ps->setting, value);
     }
     return asynError;
 }
@@ -654,6 +673,27 @@ asynStatus LightField::setExperimentDouble(String^ setting, epicsFloat64 value)
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
             "%s:%s: setting=%s, value=%f, exception = %s\n", 
             driverName, functionName, (CString)setting, value, pEx->ToString());
+        return asynError;
+    }
+    return asynSuccess;
+}
+
+asynStatus LightField::setExperimentPulse(int param, double width, double delay)
+{
+    static const char *functionName = "setExperimentPulse";
+    settingMap *ps = findSettingMap(param);
+    if (!ps) return asynError;
+    String^ setting = ps->setting;
+    Pulse^ pulse = gcnew Pulse(width, delay);
+    try {
+        if (Experiment_->Exists(setting))
+            // Want to call isValid here but it does not seem to work
+            Experiment_->SetValue(setting, pulse);
+    }
+    catch(System::Exception^ pEx) {
+        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+            "%s:%s: setting=%s, width=%f, delay=%f, exception = %s\n", 
+            driverName, functionName, (CString)setting, pulse->Width, pulse->Delay, pEx->ToString());
         return asynError;
     }
     return asynSuccess;
@@ -679,24 +719,18 @@ asynStatus LightField::setExperimentString(String^ setting, String^ value)
 
 asynStatus LightField::getExperimentValue(String^ setting)
 {
-    settingMap *ps = (settingMap *)ellFirst(&settingList_);
-    while (ps) {
-        if (ps->setting == setting) {
-            return getExperimentValue(ps);
-        }
-        ps = (settingMap *)ellNext(&ps->node);
+    settingMap *ps = findSettingMap(setting);
+    if (ps) {
+        return getExperimentValue(ps);
     }
     return asynError;
 }
 
 asynStatus LightField::getExperimentValue(int param)
 {
-    settingMap *ps = (settingMap *)ellFirst(&settingList_);
-    while (ps) {
-        if (ps->epicsParam == param) {
-            return getExperimentValue(ps);
-        }
-        ps = (settingMap *)ellNext(&ps->node);
+    settingMap *ps = findSettingMap(param);
+    if (ps) {
+        return getExperimentValue(ps);
     }
     return asynError;
 }
@@ -749,13 +783,27 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
                 break;
             }
             case asynParamFloat64: {
-                epicsFloat64 value = safe_cast<epicsFloat64>(obj);
-                // Convert exposure time from ms to s
-                if (setting == CameraSettings::ShutterTimingExposureTime) value = value/1000.;
-                asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
-                    "%s:%s: setting=%s, param=%d, value=%f\n",
-                    driverName, functionName, settingName, ps->epicsParam, value);
-                setDoubleParam(ps->epicsParam, value);
+                switch (ps->LFType) {
+                    case LFSettingDouble: {
+                        epicsFloat64 value = safe_cast<epicsFloat64>(obj);
+                        // Convert exposure time from ms to s
+                        if (setting == CameraSettings::ShutterTimingExposureTime) value = value/1000.;
+                        asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                            "%s:%s: setting=%s, param=%d, value=%f\n",
+                            driverName, functionName, settingName, ps->epicsParam, value);
+                        setDoubleParam(ps->epicsParam, value);
+                        break;
+                    }
+                    case LFSettingPulse: {
+                        Pulse^ pulse = safe_cast<Pulse^>(obj);
+                        setDoubleParam(ps->epicsParam, pulse->Width);
+                        setDoubleParam(ps->epicsParam+1, pulse->Delay);
+                        asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                            "%s:%s: setting=%s, param=%d, width=%f, delay=%f\n",
+                            driverName, functionName, settingName, ps->epicsParam, pulse->Width, pulse->Delay);
+                        break;
+                    }
+                }
                 break;
             }
             case asynParamOctet: {
@@ -881,8 +929,14 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
         (function == LFTriggerFrequency_))
         status = setExperimentDouble(function, value);
     else if (function == LFGateWidth_) {
+        double delay;
+        getDoubleParam(LFGateDelay_, &delay);
+        setExperimentPulse(LFGateWidth_, value, delay);
     }
     else if (function == LFGateDelay_) {
+        double width;
+        getDoubleParam(LFGateWidth_, &width);
+        setExperimentPulse(LFGateWidth_, width, value);
     } 
     else {
         /* If this parameter belongs to a base class call its method */
