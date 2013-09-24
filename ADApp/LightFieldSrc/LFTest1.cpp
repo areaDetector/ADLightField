@@ -163,12 +163,11 @@ int main(int argc, char *argv[])
     if (m_Experiment->Exists(SpectrometerSettings::OpticalPortExitSelected))
     {
         int ival;
-        
         printf("LFTest1, testing if SpectrometerSettings::OpticalPortExitSelected=OpticalPortLocation::FrontExit is readonly\n"); 
         bool readOnly = m_Experiment->IsReadOnly(SpectrometerSettings::OpticalPortExitSelected);
         printf("LFTest1, SpectrometerSettings::OpticalPortExitSelected, readonly=%d\n", readOnly);         
-        //printf("LFTest1, testing if SpectrometerSettings::OpticalPortExitSelected=OpticalPortLocation::FrontExit is valid\n");       
-        ;// (m_Experiment->IsValid(SpectrometerSettings::OpticalPortExitSelected, OpticalPortLocation::FrontExit)) {
+        printf("LFTest1, testing if SpectrometerSettings::OpticalPortExitSelected=OpticalPortLocation::FrontExit is valid\n");       
+        if (m_Experiment->IsValid(SpectrometerSettings::OpticalPortExitSelected, OpticalPortLocation::FrontExit)) {
             printf("LFTest1, setting SpectrometerSettings::OpticalPortExitSelected=4 (%d)\n", OpticalPortLocation::FrontExit);       
             m_Experiment->SetValue(SpectrometerSettings::OpticalPortExitSelected, 4); 
             ival = safe_cast<int>(m_Experiment->GetValue(SpectrometerSettings::OpticalPortExitSelected));
@@ -180,8 +179,26 @@ int main(int argc, char *argv[])
             ival = safe_cast<int>(obj);
             printf("Set exit port=5, read exit port=%d\n", ival);
              
-        //}             
+        }             
     }               
+
+    printf("LFTest1, testing if CameraSettings::IntensifierGatingMode exists\n");       
+    if (m_Experiment->Exists(CameraSettings::IntensifierGatingMode))
+    {
+        int ival;
+        printf("LFTest1, testing if CameraSettings::IntensifierGatingMode is readonly\n"); 
+        bool readOnly = m_Experiment->IsReadOnly(CameraSettings::IntensifierGatingMode);
+        printf("LFTest1, CameraSettings::IntensifierGatingMode, readonly=%d\n", readOnly);         
+        printf("LFTest1, testing if CameraSettings::IntensifierGatingMode=GatingMode::Repetitive is valid\n");       
+        if (m_Experiment->IsValid(CameraSettings::IntensifierGatingMode, GatingMode::Repetitive)) {
+            printf("LFTest1, setting CameraSettings::IntensifierGatingMode=GatingMode::Repetitive (%d)\n", GatingMode::Repetitive);       
+            m_Experiment->SetValue(CameraSettings::IntensifierGatingMode, GatingMode::Repetitive); 
+            ival = safe_cast<int>(m_Experiment->GetValue(CameraSettings::IntensifierGatingMode));
+            printf("Set CameraSettings::IntensifierGatingMode=%d, read CameraSettings::IntensifierGatingMode=%d\n", 
+                GatingMode::Repetitive, ival);             
+        }             
+    }               
+
     ///////////////Spectrometer setup /////////////////////////////
     printf("LFTest1, testing if SpectrometerSettings::OpticalPortEntranceSideWidth exists\n");       
     if (m_Experiment->Exists(SpectrometerSettings::OpticalPortEntranceSideWidth))
