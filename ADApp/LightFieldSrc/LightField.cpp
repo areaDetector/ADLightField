@@ -290,7 +290,6 @@ asynStatus LightField::addSetting(int param, String^ setting, asynParamType epic
 asynStatus LightField::openExperiment(const char *experimentName) 
 {
     static const char *functionName = "openExperiment";
-    
     //  It is legal to pass an empty string, in which case the default experiment is used
     if (experimentName && (strlen(experimentName) > 0)) {
         Experiment_->Load(gcnew String (experimentName));
@@ -408,9 +407,6 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
   epicsTimeStamp currentTime;
   static const char *functionName = "frameCallback";
     
-  asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
-    "%s:%s: entry ...\n",
-    driverName, functionName);
 
   IImageDataSet^ dataSet = args->ImageDataSet;
   IImageData^ frame = dataSet->GetFrame(0, 0); 
@@ -497,9 +493,6 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
   callParamCallbacks();
 
   unlock();
-  asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
-    "%s:%s: exit\n",
-    driverName, functionName);
 }
 
 asynStatus LightField::startAcquire()
@@ -514,7 +507,8 @@ asynStatus LightField::startAcquire()
     len = strlen(filePath);
     if (len > 0) filePath[len-1] = 0;        
     Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));    
-    Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));    
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));
+    setStringParam(NDFullFileName, fileName);    
 
     // Start acquisition 
     getIntegerParam(ADImageMode, &imageMode);
@@ -640,7 +634,7 @@ asynStatus LightField::setExperimentInteger(String^ setting, epicsInt32 value)
     static const char *functionName = "setExperimentInteger";
     try {
         if (Experiment_->Exists(setting) &&
-            ((setting == SpectrometerSettings::OpticalPortExitSelected) || Experiment_->IsValid(setting, value)))
+            Experiment_->IsValid(setting, value))
             Experiment_->SetValue(setting, value);
     }
     catch(System::Exception^ pEx) {
@@ -684,10 +678,10 @@ asynStatus LightField::setExperimentPulse(int param, double width, double delay)
     settingMap *ps = findSettingMap(param);
     if (!ps) return asynError;
     String^ setting = ps->setting;
-    Pulse^ pulse = gcnew Pulse(width, delay);
+    Pulse^ pulse = gcnew Pulse(width*1e9, delay*1e9);
     try {
-        if (Experiment_->Exists(setting))
-            // Want to call isValid here but it does not seem to work
+        if (Experiment_->Exists(setting) &&
+            Experiment_->IsValid(setting, pulse))
             Experiment_->SetValue(setting, pulse);
     }
     catch(System::Exception^ pEx) {
@@ -704,7 +698,7 @@ asynStatus LightField::setExperimentString(String^ setting, String^ value)
     static const char *functionName = "setExperimentString";
     try {
         if (Experiment_->Exists(setting) &&
-            ((setting == SpectrometerSettings::GratingSelected) || Experiment_->IsValid(setting, value)))
+            Experiment_->IsValid(setting, value))
             Experiment_->SetValue(setting, value);
     }
     catch(System::Exception^ pEx) {
@@ -796,11 +790,13 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
                     }
                     case LFSettingPulse: {
                         Pulse^ pulse = safe_cast<Pulse^>(obj);
-                        setDoubleParam(ps->epicsParam, pulse->Width);
-                        setDoubleParam(ps->epicsParam+1, pulse->Delay);
+                        double width = pulse->Width * 1e-9;
+                        double delay = pulse->Delay * 1e-9;
+                        setDoubleParam(ps->epicsParam, width);
+                        setDoubleParam(ps->epicsParam+1, delay);
                         asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
                             "%s:%s: setting=%s, param=%d, width=%f, delay=%f\n",
-                            driverName, functionName, settingName, ps->epicsParam, pulse->Width, pulse->Delay);
+                            driverName, functionName, settingName, ps->epicsParam, width, delay);
                         break;
                     }
                 }
@@ -877,12 +873,16 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
         status = setExperimentInteger(function, value); 
      } else if (function == LFGrating_) {
         List<String^>^ list = gratingList_;
-        String^ grating = list[value];
-        status = setExperimentString(SpectrometerSettings::GratingSelected, grating);
+        if (value < list->Count) {
+            String^ grating = list[value];
+            status = setExperimentString(SpectrometerSettings::GratingSelected, grating);
+        }
     } else if (function == LFExperimentName_) {
         List<String^>^ list = experimentList_;
-        String^ experimentName = list[value];
-        status = openExperiment((CString)experimentName);
+        if (value < list->Count) {
+            String^ experimentName = list[value];
+            status = openExperiment((CString)experimentName);
+        }
     } else {
         /* If this parameter belongs to a base class call its method */
         if (function < FIRST_LF_PARAM) status = ADDriver::writeInt32(pasynUser, value);
