@@ -66,6 +66,8 @@ static const char *driverName = "LightField";
 #define LFSeqStartGateDelayString      "LF_SEQ_START_GATE_DELAY"
 #define LFSeqEndGateWidthString        "LF_SEQ_END_GATE_WIDTH"
 #define LFSeqEndGateDelayString        "LF_SEQ_END_GATE_DELAY"
+#define LFAuxWidthString               "LF_AUX_WIDTH"
+#define LFAuxDelayString               "LF_AUX_DELAY"
 
 typedef enum {
     LFSettingInt32,
@@ -129,7 +131,9 @@ protected:
     int LFSeqStartGateDelay_;
     int LFSeqEndGateWidth_;
     int LFSeqEndGateDelay_;
-    #define LAST_LF_PARAM LFSeqEndGateDelay_
+    int LFAuxWidth_;
+    int LFAuxDelay_;
+    #define LAST_LF_PARAM LFAuxDelay_
          
 private:                               
     gcroot<PrincetonInstruments::LightField::Automation::Automation ^> Automation_;
@@ -243,12 +247,16 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFTriggerFrequencyString,      asynParamFloat64,   &LFTriggerFrequency_);
     createParam(LFSyncMasterEnableString,        asynParamInt32,   &LFSyncMasterEnable_);
     createParam(LFSyncMaster2DelayString,      asynParamFloat64,   &LFSyncMaster2Delay_);
+    // Note: the code assumes that for each pulse parameter the width and gate
+    // are successive parameter numbers, so this order cannot be changed.
     createParam(LFRepGateWidthString,          asynParamFloat64,   &LFRepGateWidth_);
     createParam(LFRepGateDelayString,          asynParamFloat64,   &LFRepGateDelay_);
-    createParam(LFSeqStartGateWidthString,     asynParamFloat64, &LFSeqStartGateWidth_);
-    createParam(LFSeqStartGateDelayString,     asynParamFloat64, &LFSeqStartGateDelay_);
-    createParam(LFSeqEndGateWidthString,       asynParamFloat64, &LFSeqEndGateWidth_);
-    createParam(LFSeqEndGateDelayString,       asynParamFloat64, &LFSeqEndGateDelay_);
+    createParam(LFSeqStartGateWidthString,     asynParamFloat64,   &LFSeqStartGateWidth_);
+    createParam(LFSeqStartGateDelayString,     asynParamFloat64,   &LFSeqStartGateDelay_);
+    createParam(LFSeqEndGateWidthString,       asynParamFloat64,   &LFSeqEndGateWidth_);
+    createParam(LFSeqEndGateDelayString,       asynParamFloat64,   &LFSeqEndGateDelay_);
+    createParam(LFAuxWidthString,              asynParamFloat64,   &LFAuxWidth_);
+    createParam(LFAuxDelayString,              asynParamFloat64,   &LFAuxDelay_);
     
     ellInit(&settingList_);
     addSetting(ADMaxSizeX,          CameraSettings::SensorInformationActiveAreaWidth,                           
@@ -283,6 +291,8 @@ LightField::LightField(const char *portName, const char* experimentName,
                 asynParamInt32, LFSettingEnum);
     addSetting(LFBackgroundEnable_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionEnabled,           
                 asynParamInt32, LFSettingBoolean);
+    addSetting(LFGrating_,          SpectrometerSettings::GratingSelected,                              
+                asynParamInt32, LFSettingString);
     addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,                              
                 asynParamFloat64, LFSettingDouble);
     addSetting(LFIntensifierEnable_, CameraSettings::IntensifierEnabled,                              
@@ -302,6 +312,8 @@ LightField::LightField(const char *portName, const char* experimentName,
     addSetting(LFSeqStartGateWidth_, CameraSettings::IntensifierGatingSequentialStartingGate,                              
                 asynParamFloat64, LFSettingPulse);
     addSetting(LFSeqEndGateWidth_, CameraSettings::IntensifierGatingSequentialEndingGate,                              
+                asynParamFloat64, LFSettingPulse);
+    addSetting(LFAuxWidth_,        CameraSettings::HardwareIOAuxOutput,                              
                 asynParamFloat64, LFSettingPulse);
  
     // options can include a list of files to open when launching LightField
@@ -796,75 +808,85 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
     Object^ obj = Experiment_->GetValue(ps->setting);
 
     try {
-        switch (ps->epicsType) {
-            case asynParamInt32: {
-                epicsInt32 value;
-                switch (ps->LFType) {
-                    case LFSettingInt64: {
-                        __int64 temp = safe_cast<__int64>(obj);
-                        value = (epicsInt32)temp;
-                        break;
+        // Special cases that don't fall into the categories below
+        if (ps->epicsParam == LFGrating_) {
+            String^ value = safe_cast<String^>(obj);
+            int i = gratingList_->IndexOf(value);
+            if (i >= 0) setIntegerParam(ps->epicsParam, i);
+        }
+        else {
+            switch (ps->epicsType) {
+                case asynParamInt32: {
+                    epicsInt32 value;
+                    switch (ps->LFType) {
+                        case LFSettingInt64: {
+                            __int64 temp = safe_cast<__int64>(obj);
+                            value = (epicsInt32)temp;
+                            break;
+                        }
+                        case LFSettingInt32: {
+                            __int32 temp = safe_cast<__int32>(obj);
+                            value = (epicsInt32)temp;
+                            break;
+                        }
+                        case LFSettingBoolean: {
+                            bool temp = safe_cast<bool>(obj);
+                            value = (epicsInt32)temp;
+                            break;
+                        }
+                        case LFSettingEnum: {
+                            __int32 temp = safe_cast<__int32>(obj);
+                            value = (epicsInt32)temp;
+                            break;
+                        }
+                        default:
+                            asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+                                "%s:%s: setting=%s, asynInt32, unknown LFSetting_t=%d\n",
+                                driverName, functionName, ps->LFType);
+                            break;
                     }
-                    case LFSettingInt32: {
-                        __int32 temp = safe_cast<__int32>(obj);
-                        value = (epicsInt32)temp;
-                        break;
-                    }
-                    case LFSettingBoolean: {
-                        bool temp = safe_cast<bool>(obj);
-                        value = (epicsInt32)temp;
-                        break;
-                    }
-                    case LFSettingEnum: {
-                        __int32 temp = safe_cast<__int32>(obj);
-                        value = (epicsInt32)temp;
-                        break;
-                    }
-                    default:
-                        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
-                            "%s:%s: setting=%s, asynInt32, unknown LFSetting_t=%d\n",
-                            driverName, functionName, ps->LFType);
-                        break;
+                    asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                        "%s:%s: setting=%s, param=%d, value=%d\n",
+                        driverName, functionName, settingName, ps->epicsParam, value);
+                    setIntegerParam(ps->epicsParam, value);
+                    break;
                 }
-                asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
-                    "%s:%s: setting=%s, param=%d, value=%d\n",
-                    driverName, functionName, settingName, ps->epicsParam, value);
-                setIntegerParam(ps->epicsParam, value);
-                break;
-            }
-            case asynParamFloat64: {
-                switch (ps->LFType) {
-                    case LFSettingDouble: {
-                        epicsFloat64 value = safe_cast<epicsFloat64>(obj);
-                        // Convert exposure time from ms to s
-                        if (setting == CameraSettings::ShutterTimingExposureTime) value = value/1000.;
-                        asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
-                            "%s:%s: setting=%s, param=%d, value=%f\n",
-                            driverName, functionName, settingName, ps->epicsParam, value);
-                        setDoubleParam(ps->epicsParam, value);
-                        break;
+                case asynParamFloat64: {
+                    switch (ps->LFType) {
+                        case LFSettingDouble: {
+                            epicsFloat64 value = safe_cast<epicsFloat64>(obj);
+                            // Convert exposure time from ms to s
+                            if (ps->epicsParam == ADAcquireTime) value = value/1e3;
+                            // Convert SyncMaster2Delay time from us to s
+                            if (ps->epicsParam == LFSyncMaster2Delay_) value = value/1e6;
+                            asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                                "%s:%s: setting=%s, param=%d, value=%f\n",
+                                driverName, functionName, settingName, ps->epicsParam, value);
+                            setDoubleParam(ps->epicsParam, value);
+                            break;
+                        }
+                        case LFSettingPulse: {
+                            Pulse^ pulse = safe_cast<Pulse^>(obj);
+                            double width = pulse->Width * 1e-9;
+                            double delay = pulse->Delay * 1e-9;
+                            setDoubleParam(ps->epicsParam, width);
+                            setDoubleParam(ps->epicsParam+1, delay);
+                            asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                                "%s:%s: setting=%s, param=%d, width=%f, delay=%f\n",
+                                driverName, functionName, settingName, ps->epicsParam, width, delay);
+                            break;
+                        }
                     }
-                    case LFSettingPulse: {
-                        Pulse^ pulse = safe_cast<Pulse^>(obj);
-                        double width = pulse->Width * 1e-9;
-                        double delay = pulse->Delay * 1e-9;
-                        setDoubleParam(ps->epicsParam, width);
-                        setDoubleParam(ps->epicsParam+1, delay);
-                        asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
-                            "%s:%s: setting=%s, param=%d, width=%f, delay=%f\n",
-                            driverName, functionName, settingName, ps->epicsParam, width, delay);
-                        break;
-                    }
+                    break;
                 }
-                break;
-            }
-            case asynParamOctet: {
-                String^ value = safe_cast<String^>(obj);
-                asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
-                    "%s:%s: setting=%s, param=%d, value=%s\n",
-                    driverName, functionName, settingName, ps->epicsParam, (CString)value);
-                setStringParam(ps->epicsParam, (CString)value);
-                break;
+                case asynParamOctet: {
+                    String^ value = safe_cast<String^>(obj);
+                    asynPrint(pasynUserSelf, ASYN_TRACEIO_DRIVER,
+                        "%s:%s: setting=%s, param=%d, value=%s\n",
+                        driverName, functionName, settingName, ps->epicsParam, (CString)value);
+                    setStringParam(ps->epicsParam, (CString)value);
+                    break;
+                }
             }
         }
         callParamCallbacks();
@@ -992,35 +1014,21 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
         (function == LFTriggerFrequency_) ||
         (function == LFSyncMaster2Delay_))
         status = setExperimentDouble(function, value);
-    else if (function == LFRepGateWidth_) {
+    else if ((function == LFRepGateWidth_) ||
+             (function == LFSeqStartGateWidth_) ||
+             (function == LFSeqEndGateWidth_) ||
+             (function == LFAuxWidth_)) {
         double delay;
-        getDoubleParam(LFRepGateDelay_, &delay);
-        status = setExperimentPulse(LFRepGateWidth_, value, delay);
+        getDoubleParam(function+1, &delay);
+        status = setExperimentPulse(function, value, delay);
     }
-    else if (function == LFRepGateDelay_) {
+    else if ((function == LFRepGateDelay_) ||
+             (function == LFSeqStartGateDelay_) ||
+             (function == LFSeqEndGateDelay_) ||
+             (function == LFAuxDelay_)) {
         double width;
-        getDoubleParam(LFRepGateWidth_, &width);
-        status = setExperimentPulse(LFRepGateWidth_, width, value);
-    } 
-    else if (function == LFSeqStartGateWidth_) {
-        double delay;
-        getDoubleParam(LFSeqStartGateDelay_, &delay);
-        status = setExperimentPulse(LFSeqStartGateWidth_, value, delay);
-    }
-    else if (function == LFSeqStartGateDelay_) {
-        double width;
-        getDoubleParam(LFSeqStartGateWidth_, &width);
-        status = setExperimentPulse(LFSeqStartGateWidth_, width, value);
-    } 
-    else if (function == LFSeqEndGateWidth_) {
-        double delay;
-        getDoubleParam(LFSeqEndGateDelay_, &delay);
-        status = setExperimentPulse(LFSeqEndGateWidth_, value, delay);
-    }
-    else if (function == LFSeqEndGateDelay_) {
-        double width;
-        getDoubleParam(LFSeqEndGateWidth_, &width);
-        status = setExperimentPulse(LFSeqEndGateWidth_, width, value);
+        getDoubleParam(function-1, &width);
+        status = setExperimentPulse(function-1, width, value);
     } 
     else {
         /* If this parameter belongs to a base class call its method */
