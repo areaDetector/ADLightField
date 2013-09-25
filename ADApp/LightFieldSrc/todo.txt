@@ -1,17 +1,17 @@
           To Do in LightField driver
 
-Why does it crash on my laptop?
-
 ROI readbacks
 
-Synchro timing parameters
+Status when busy
 
-Readbacks of experiment, grating.  Driver and medm.
+Readbacks of experiment, driver and medm.
 
-Number of accumulations
+Number of acquisitions
 
 Background path, file
 
 Acquire background
 
 Apply background
+
+Test: Grating readback, busy event when changing grating, etc.
