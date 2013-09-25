@@ -54,10 +54,18 @@ static const char *driverName = "LightField";
 #define LFShutterModeString            "LF_SHUTTER_MODE"
 #define LFBackgroundFileString         "LF_BACKGROUND_FILE"
 #define LFBackgroundEnableString       "LF_BACKGROUND_ENABLE"
+#define LFIntensifierEnableString      "LF_INTENSIFIER_ENABLE"
+#define LFIntensifierGainString        "LF_INTENSIFIER_GAIN"
 #define LFGatingModeString             "LF_GATING_MODE"
 #define LFTriggerFrequencyString       "LF_TRIGGER_FREQUENCY"
-#define LFGateWidthString              "LF_GATE_WIDTH"
-#define LFGateDelayString              "LF_GATE_DELAY"
+#define LFSyncMasterEnableString       "LF_SYNCMASTER_ENABLE"
+#define LFSyncMaster2DelayString       "LF_SYNCMASTER2_DELAY"
+#define LFRepGateWidthString           "LF_REP_GATE_WIDTH"
+#define LFRepGateDelayString           "LF_REP_GATE_DELAY"
+#define LFSeqStartGateWidthString      "LF_SEQ_START_GATE_WIDTH"
+#define LFSeqStartGateDelayString      "LF_SEQ_START_GATE_DELAY"
+#define LFSeqEndGateWidthString        "LF_SEQ_END_GATE_WIDTH"
+#define LFSeqEndGateDelayString        "LF_SEQ_END_GATE_DELAY"
 
 typedef enum {
     LFSettingInt32,
@@ -109,11 +117,19 @@ protected:
     int LFShutterMode_;
     int LFBackgroundFile_;
     int LFBackgroundEnable_;
+    int LFIntensifierEnable_;
+    int LFIntensifierGain_;
     int LFGatingMode_;
     int LFTriggerFrequency_;
-    int LFGateWidth_;
-    int LFGateDelay_;
-    #define LAST_LF_PARAM LFGateDelay_
+    int LFSyncMasterEnable_;
+    int LFSyncMaster2Delay_;
+    int LFRepGateWidth_;
+    int LFRepGateDelay_;
+    int LFSeqStartGateWidth_;
+    int LFSeqStartGateDelay_;
+    int LFSeqEndGateWidth_;
+    int LFSeqEndGateDelay_;
+    #define LAST_LF_PARAM LFSeqEndGateDelay_
          
 private:                               
     gcroot<PrincetonInstruments::LightField::Automation::Automation ^> Automation_;
@@ -163,6 +179,18 @@ void settingChangedEventHandler(System::Object^ sender, SettingChangedEventArgs^
     LightField_->settingChangedCallback(args);
 }
 
+void experimentUpdatingEventHandler(System::Object^ sender, ExperimentUpdatingEventArgs^ args)
+{
+printf("Got ExperimentUpdating event\n");
+    //LightField_->setExperimentUpdating;
+}
+
+void experimentUpdatedEventHandler(System::Object^ sender, ExperimentUpdatedEventArgs^ args)
+{
+printf("Got ExperimentUpdated event\n");
+    //LightField_->setExperimentUpdated;
+}
+
 
 extern "C" int LightFieldConfig(const char *portName, const char *experimentName,
                            int maxBuffers, size_t maxMemory,
@@ -209,10 +237,18 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFShutterModeString,             asynParamInt32,   &LFShutterMode_);
     createParam(LFBackgroundFileString,          asynParamOctet,   &LFBackgroundFile_);
     createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
+    createParam(LFIntensifierEnableString,       asynParamInt32,   &LFIntensifierEnable_);
+    createParam(LFIntensifierGainString,         asynParamInt32,   &LFIntensifierGain_);
     createParam(LFGatingModeString,              asynParamInt32,   &LFGatingMode_);
     createParam(LFTriggerFrequencyString,      asynParamFloat64,   &LFTriggerFrequency_);
-    createParam(LFGateWidthString,             asynParamFloat64,   &LFGateWidth_);
-    createParam(LFGateDelayString,             asynParamFloat64,   &LFGateDelay_);
+    createParam(LFSyncMasterEnableString,        asynParamInt32,   &LFSyncMasterEnable_);
+    createParam(LFSyncMaster2DelayString,      asynParamFloat64,   &LFSyncMaster2Delay_);
+    createParam(LFRepGateWidthString,          asynParamFloat64,   &LFRepGateWidth_);
+    createParam(LFRepGateDelayString,          asynParamFloat64,   &LFRepGateDelay_);
+    createParam(LFSeqStartGateWidthString,     asynParamFloat64, &LFSeqStartGateWidth_);
+    createParam(LFSeqStartGateDelayString,     asynParamFloat64, &LFSeqStartGateDelay_);
+    createParam(LFSeqEndGateWidthString,       asynParamFloat64, &LFSeqEndGateWidth_);
+    createParam(LFSeqEndGateDelayString,       asynParamFloat64, &LFSeqEndGateDelay_);
     
     ellInit(&settingList_);
     addSetting(ADMaxSizeX,          CameraSettings::SensorInformationActiveAreaWidth,                           
@@ -249,11 +285,23 @@ LightField::LightField(const char *portName, const char* experimentName,
                 asynParamInt32, LFSettingBoolean);
     addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,                              
                 asynParamFloat64, LFSettingDouble);
+    addSetting(LFIntensifierEnable_, CameraSettings::IntensifierEnabled,                              
+                asynParamInt32, LFSettingBoolean);
+    addSetting(LFIntensifierGain_, CameraSettings::IntensifierGain,                              
+                asynParamInt32, LFSettingInt32);
     addSetting(LFGatingMode_,       CameraSettings::IntensifierGatingMode,                              
                 asynParamInt32, LFSettingEnum);
     addSetting(LFTriggerFrequency_, CameraSettings::HardwareIOTriggerFrequency,                              
                 asynParamFloat64, LFSettingDouble);
-    addSetting(LFGateWidth_,        CameraSettings::IntensifierGatingRepetitiveGate,                              
+    addSetting(LFSyncMasterEnable_, CameraSettings::HardwareIOSyncMasterEnabled,                              
+                asynParamInt32, LFSettingBoolean);
+    addSetting(LFSyncMaster2Delay_, CameraSettings::HardwareIOSyncMaster2Delay,                              
+                asynParamFloat64, LFSettingDouble);
+    addSetting(LFRepGateWidth_, CameraSettings::IntensifierGatingRepetitiveGate,                              
+                asynParamFloat64, LFSettingPulse);
+    addSetting(LFSeqStartGateWidth_, CameraSettings::IntensifierGatingSequentialStartingGate,                              
+                asynParamFloat64, LFSettingPulse);
+    addSetting(LFSeqEndGateWidth_, CameraSettings::IntensifierGatingSequentialEndingGate,                              
                 asynParamFloat64, LFSettingPulse);
  
     // options can include a list of files to open when launching LightField
@@ -334,6 +382,14 @@ asynStatus LightField::openExperiment(const char *experimentName)
     // Connect the setting changed event handler       
     Experiment_->SettingChanged +=
         gcnew System::EventHandler<SettingChangedEventArgs^>(&settingChangedEventHandler);
+
+    // Connect the experiment updating event handler       
+    Experiment_->ExperimentUpdating +=
+        gcnew System::EventHandler<ExperimentUpdatingEventArgs^>(&experimentUpdatingEventHandler);
+
+    // Connect the experiment updated event handler       
+    Experiment_->ExperimentUpdated +=
+        gcnew System::EventHandler<ExperimentUpdatedEventArgs^>(&experimentUpdatedEventHandler);
 
     // Enable online orientation corrections
     setExperimentInteger(ExperimentSettings::OnlineCorrectionsOrientationCorrectionEnabled, true);
@@ -633,9 +689,9 @@ asynStatus LightField::setExperimentInteger(String^ setting, epicsInt32 value)
 {
     static const char *functionName = "setExperimentInteger";
     try {
-        if (Experiment_->Exists(setting) &&
-            Experiment_->IsValid(setting, value))
-            Experiment_->SetValue(setting, value);
+        if (!Experiment_->Exists(setting)) return asynSuccess;
+        if (!Experiment_->IsValid(setting, value)) return asynError;
+        Experiment_->SetValue(setting, value);
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
@@ -659,9 +715,9 @@ asynStatus LightField::setExperimentDouble(String^ setting, epicsFloat64 value)
 {
     static const char *functionName = "setExperimentDouble";
     try {
-        if (Experiment_->Exists(setting) &&
-            Experiment_->IsValid(setting, value))
-            Experiment_->SetValue(setting, value);
+        if (!Experiment_->Exists(setting)) return asynSuccess;
+        if (!Experiment_->IsValid(setting, value)) return asynError;
+        Experiment_->SetValue(setting, value);
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
@@ -680,9 +736,9 @@ asynStatus LightField::setExperimentPulse(int param, double width, double delay)
     String^ setting = ps->setting;
     Pulse^ pulse = gcnew Pulse(width*1e9, delay*1e9);
     try {
-        if (Experiment_->Exists(setting) &&
-            Experiment_->IsValid(setting, pulse))
-            Experiment_->SetValue(setting, pulse);
+        if (!Experiment_->Exists(setting)) return asynSuccess;
+        if (!Experiment_->IsValid(setting, pulse)) return asynError;
+        Experiment_->SetValue(setting, pulse);
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
@@ -697,9 +753,9 @@ asynStatus LightField::setExperimentString(String^ setting, String^ value)
 {
     static const char *functionName = "setExperimentString";
     try {
-        if (Experiment_->Exists(setting) &&
-            Experiment_->IsValid(setting, value))
-            Experiment_->SetValue(setting, value);
+        if (!Experiment_->Exists(setting)) return asynSuccess;
+        if (!Experiment_->IsValid(setting, value)) return asynError;
+        Experiment_->SetValue(setting, value);
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
@@ -869,7 +925,10 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 (function == LFEntranceSideWidth_) ||
                 (function == LFExitSelected_) ||
                 (function == LFBackgroundEnable_) ||
-                (function == LFGatingMode_) ) {
+                (function == LFIntensifierEnable_) ||
+                (function == LFIntensifierGain_) ||
+                (function == LFGatingMode_) ||
+                (function == LFSyncMasterEnable_)) {
         status = setExperimentInteger(function, value); 
      } else if (function == LFGrating_) {
         List<String^>^ list = gratingList_;
@@ -921,22 +980,47 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
     /* Changing any of the following parameters requires recomputing the base image */
     if (function == ADAcquireTime) {
         // LightField units are ms 
-        value = value*1000;
+        value = value*1e3;
+    }
+    if (function == LFSyncMaster2Delay_) {
+        // LightField units are us 
+        value = value*1e6;
     }
     if ((function == ADAcquireTime) ||
         (function == ADTemperature) ||
         (function == LFGratingWavelength_) ||
-        (function == LFTriggerFrequency_))
+        (function == LFTriggerFrequency_) ||
+        (function == LFSyncMaster2Delay_))
         status = setExperimentDouble(function, value);
-    else if (function == LFGateWidth_) {
+    else if (function == LFRepGateWidth_) {
         double delay;
-        getDoubleParam(LFGateDelay_, &delay);
-        setExperimentPulse(LFGateWidth_, value, delay);
+        getDoubleParam(LFRepGateDelay_, &delay);
+        status = setExperimentPulse(LFRepGateWidth_, value, delay);
     }
-    else if (function == LFGateDelay_) {
+    else if (function == LFRepGateDelay_) {
         double width;
-        getDoubleParam(LFGateWidth_, &width);
-        setExperimentPulse(LFGateWidth_, width, value);
+        getDoubleParam(LFRepGateWidth_, &width);
+        status = setExperimentPulse(LFRepGateWidth_, width, value);
+    } 
+    else if (function == LFSeqStartGateWidth_) {
+        double delay;
+        getDoubleParam(LFSeqStartGateDelay_, &delay);
+        status = setExperimentPulse(LFSeqStartGateWidth_, value, delay);
+    }
+    else if (function == LFSeqStartGateDelay_) {
+        double width;
+        getDoubleParam(LFSeqStartGateWidth_, &width);
+        status = setExperimentPulse(LFSeqStartGateWidth_, width, value);
+    } 
+    else if (function == LFSeqEndGateWidth_) {
+        double delay;
+        getDoubleParam(LFSeqEndGateDelay_, &delay);
+        status = setExperimentPulse(LFSeqEndGateWidth_, value, delay);
+    }
+    else if (function == LFSeqEndGateDelay_) {
+        double width;
+        getDoubleParam(LFSeqEndGateWidth_, &width);
+        status = setExperimentPulse(LFSeqEndGateWidth_, width, value);
     } 
     else {
         /* If this parameter belongs to a base class call its method */
