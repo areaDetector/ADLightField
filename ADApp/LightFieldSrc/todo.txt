@@ -1,17 +1,5 @@
           To Do in LightField driver
 
-ROI readbacks
-
-Status when busy
-
-Readbacks of experiment, driver and medm.
-
 Number of acquisitions
 
-Background path, file
-
-Acquire background
-
-Apply background
-
-Test: Grating readback, busy event when changing grating, etc.
+Restore previous state of background enable in image completion callback?
