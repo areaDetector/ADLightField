@@ -31,6 +31,8 @@
 
 #include <epicsExport.h>
 
+#define LF_POLL_TIME 1.0
+
 using namespace System;
 using namespace System::Collections::Generic;
 
@@ -53,7 +55,9 @@ static const char *driverName = "LightField";
 #define LFExitSelectedString           "LF_EXIT_SELECTED"
 #define LFExperimentNameString         "LF_EXPERIMENT_NAME"
 #define LFShutterModeString            "LF_SHUTTER_MODE"
+#define LFBackgroundPathString         "LF_BACKGROUND_PATH"
 #define LFBackgroundFileString         "LF_BACKGROUND_FILE"
+#define LFBackgroundFullFileString     "LF_BACKGROUND_FULL_FILE"
 #define LFBackgroundEnableString       "LF_BACKGROUND_ENABLE"
 #define LFIntensifierEnableString      "LF_INTENSIFIER_ENABLE"
 #define LFIntensifierGainString        "LF_INTENSIFIER_GAIN"
@@ -70,7 +74,14 @@ static const char *driverName = "LightField";
 #define LFAuxWidthString               "LF_AUX_WIDTH"
 #define LFAuxDelayString               "LF_AUX_DELAY"
 #define LFReadyToRunString             "LF_READY_TO_RUN"
+#define LFFilePathString               "LF_FILE_PATH"
 #define LFFileNameString               "LF_FILE_NAME"
+
+typedef enum {
+    LFImageModeNormal,
+    LFImageModePreview,
+    LFImageModeBackground
+} LFImageMode_t;
 
 typedef enum {
     LFSettingInt32,
@@ -112,6 +123,7 @@ public:
     void frameCallback(ImageDataSetReceivedEventArgs^ args);
     void settingChangedCallback(SettingChangedEventArgs^ args);
     void exitHandler(void *args);
+    void pollerTask();
 
 protected:
     int LFGain_;
@@ -124,7 +136,9 @@ protected:
     int LFExitSelected_;
     int LFExperimentName_;
     int LFShutterMode_;
+    int LFBackgroundPath_;
     int LFBackgroundFile_;
+    int LFBackgroundFullFile_;
     int LFBackgroundEnable_;
     int LFIntensifierEnable_;
     int LFIntensifierGain_;
@@ -141,6 +155,7 @@ protected:
     int LFAuxWidth_;
     int LFAuxDelay_;
     int LFReadyToRun_;
+    int LFFilePath_;
     int LFFileName_;
     #define LAST_LF_PARAM LFFileName_
          
@@ -151,6 +166,7 @@ private:
     settingMap* findSettingMap(String^ setting);
     settingMap* findSettingMap(int param);
     asynStatus setFilePathAndName(bool doAutoIncrement);
+    asynStatus setBackgroundFile();
     asynStatus setExperimentInteger(String^ setting, epicsInt32 value);
     asynStatus setExperimentInteger(int param, epicsInt32 value);
     asynStatus setExperimentDouble(String^ setting, epicsFloat64 value);
@@ -169,6 +185,7 @@ private:
     gcroot<List<String^>^> experimentList_;
     gcroot<List<String^>^> gratingList_;
     gcroot<String^> previousExperimentName_;
+    bool exiting_;
     ELLLIST settingList_;
 };
 
@@ -199,6 +216,11 @@ void settingChangedEventHandler(System::Object^ sender, SettingChangedEventArgs^
 void LFExitHandler(void *args)
 {
     LightField_->exitHandler(args);
+}
+
+void LFPollerTask(void *args)
+{
+    LightField_->pollerTask();
 }
 
 
@@ -241,6 +263,8 @@ LightField::LightField(const char *portName, const char* experimentName,
     
     // Set up an exit handler
     epicsAtExit(LFExitHandler, (void *)this);
+    
+    exiting_ = false;
 
     lock();
     createParam(LFGainString,                    asynParamInt32,   &LFGain_);
@@ -252,7 +276,9 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFExitSelectedString,            asynParamInt32,   &LFExitSelected_);
     createParam(LFExperimentNameString,          asynParamInt32,   &LFExperimentName_);
     createParam(LFShutterModeString,             asynParamInt32,   &LFShutterMode_);
+    createParam(LFBackgroundPathString,          asynParamOctet,   &LFBackgroundPath_);
     createParam(LFBackgroundFileString,          asynParamOctet,   &LFBackgroundFile_);
+    createParam(LFBackgroundFullFileString,      asynParamOctet,   &LFBackgroundFullFile_);
     createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
     createParam(LFIntensifierEnableString,       asynParamInt32,   &LFIntensifierEnable_);
     createParam(LFIntensifierGainString,         asynParamInt32,   &LFIntensifierGain_);
@@ -271,6 +297,7 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFAuxWidthString,              asynParamFloat64,   &LFAuxWidth_);
     createParam(LFAuxDelayString,              asynParamFloat64,   &LFAuxDelay_);
     createParam(LFReadyToRunString,              asynParamInt32,   &LFReadyToRun_);
+    createParam(LFFilePathString,                asynParamOctet,   &LFFilePath_);
     createParam(LFFileNameString,                asynParamOctet,   &LFFileName_);
 
     ellInit(&settingList_);
@@ -304,7 +331,7 @@ LightField::LightField(const char *portName, const char* experimentName,
                 asynParamInt32, LFSettingEnum);
     addSetting(LFShutterMode_,      CameraSettings::ShutterTimingMode,                                          
                 asynParamInt32, LFSettingEnum);
-    addSetting(LFBackgroundFile_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionReferenceFile,           
+    addSetting(LFBackgroundFullFile_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionReferenceFile,           
                 asynParamOctet, LFSettingString);
     addSetting(LFBackgroundEnable_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionEnabled,           
                 asynParamInt32, LFSettingBoolean);
@@ -332,7 +359,7 @@ LightField::LightField(const char *portName, const char* experimentName,
                 asynParamFloat64, LFSettingPulse);
     addSetting(LFAuxWidth_,        CameraSettings::HardwareIOAuxOutput,                              
                 asynParamFloat64, LFSettingPulse);
-    addSetting(NDFilePath,        ExperimentSettings::FileNameGenerationDirectory,                              
+    addSetting(LFFilePath_,        ExperimentSettings::FileNameGenerationDirectory,                              
                 asynParamOctet, LFSettingString);
     addSetting(LFFileName_,       ExperimentSettings::FileNameGenerationBaseFileName,                              
                 asynParamOctet, LFSettingString);
@@ -370,6 +397,12 @@ LightField::LightField(const char *portName, const char* experimentName,
     // Open the experiment
     openExperiment(experimentName);
     
+    /* Create the thread that polls for status */
+    status = (epicsThreadCreate("LFTask",
+                                epicsThreadPriorityMedium,
+                                epicsThreadGetStackSize(epicsThreadStackMedium),
+                                (EPICSTHREADFUNC)LFPollerTask,
+                                this) == NULL);    
     unlock();
 
 }
@@ -488,7 +521,10 @@ void LightField::settingChangedCallback(SettingChangedEventArgs^ args)
 
 void LightField::exitHandler(void *args)
 {
+    lock();
+    exiting_ = true;
     delete Automation_;
+    unlock();
 }
 
 //_____________________________________________________________________________________________
@@ -596,20 +632,30 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
 asynStatus LightField::startAcquire()
 {
     int imageMode;
-    int ready = Experiment_->IsReadyToRun;
-    setIntegerParam(LFReadyToRun_, ready);
-    if (!ready) return asynError;
+    int backgroundEnable;
+    static const char *functionName = "startAcquire";
 
-    setFilePathAndName(true);
-   
-    // Start acquisition 
     getIntegerParam(ADImageMode, &imageMode);
     setIntegerParam(ADStatus, ADStatusAcquire);
+    getIntegerParam(LFBackgroundEnable_, &backgroundEnable);
     callParamCallbacks();
-    if (imageMode == ADImageContinuous) {
-        Experiment_->Preview();
-    } else {
-        Experiment_->Acquire();
+
+    switch (imageMode) {
+        case LFImageModeNormal:
+            setFilePathAndName(true);
+            if (!Experiment_->IsReadyToRun) return asynError;
+            Experiment_->Acquire();
+            break;
+        case LFImageModePreview:
+            if (!Experiment_->IsReadyToRun) return asynError;
+            Experiment_->Preview();
+            break;
+        case LFImageModeBackground:
+            setBackgroundFile();
+            setExperimentInteger(LFBackgroundEnable_, 0);
+            if (!Experiment_->IsReadyToRun) return asynError;
+            Experiment_->Acquire();
+            break;
     }
     return asynSuccess;
 }
@@ -653,6 +699,38 @@ asynStatus LightField::setFilePathAndName(bool doAutoIncrement)
     setStringParam(NDFullFileName, fullFileName); 
     return asynSuccess;   
 }
+
+asynStatus LightField::setBackgroundFile()
+{
+    char filePath[MAX_FILENAME_LEN];
+    char fileName[MAX_FILENAME_LEN];
+    char fullFileName[MAX_FILENAME_LEN];
+    asynStatus status;
+    size_t len;
+    
+    status = getStringParam(LFBackgroundPath_, sizeof(filePath), filePath);
+    if (status) return asynError; 
+    // Remove trailing '\' or '/'
+    len = strlen(filePath);
+    if (len > 0) {
+        if ((filePath[len-1] == '/') ||
+            (filePath[len-1] == '\\')) {
+            filePath[len-1] = 0;
+        } 
+    } 
+    status = getStringParam(LFBackgroundFile_, sizeof(fileName), fileName); 
+    if (status) return asynError;
+    len = epicsSnprintf(fullFileName, sizeof(fullFileName), "%s\\%s.spe", 
+                        filePath, fileName);
+    if (len < 0) return asynError;
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));    
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));
+    Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsBackgroundCorrectionReferenceFile, 
+                          gcnew String(fullFileName));    
+    setStringParam(LFBackgroundFullFile_, fullFileName); 
+    return asynSuccess;   
+}
+
 
 asynStatus LightField::getROI()
 {
@@ -890,6 +968,37 @@ asynStatus LightField::getExperimentValue(int param)
     return asynError;
 }
 
+void LightField::pollerTask()
+{
+    static const char *functionName = "pollerTask";
+
+    lock();
+    while (!exiting_) {
+        try {
+            int ready = Experiment_->IsReadyToRun;
+            setIntegerParam(LFReadyToRun_, ready);
+            if (Experiment_->Name != previousExperimentName_) {
+                previousExperimentName_ = Experiment_->Name;
+                String^ name = Experiment_->Name + gcnew String(".lfe");
+                int experimentIndex = experimentList_->IndexOf(name);
+                if (experimentIndex >= 0) {
+                    setIntegerParam(LFExperimentName_, experimentIndex);
+                }
+            }
+        }
+        catch(System::Exception^ pEx) {
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                "%s:%s: exception = %s\n", 
+                driverName, functionName, pEx->ToString());
+        }
+        callParamCallbacks();
+        unlock();
+        epicsThreadSleep(LF_POLL_TIME);
+        lock();
+    }
+}
+        
+
 asynStatus LightField::getExperimentValue(settingMap *ps)
 {
     static const char *functionName = "getExperimentValue";
@@ -898,27 +1007,9 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
     
     if (!ps->exists) return asynSuccess;
 
-    Object^ obj = Experiment_->GetValue(ps->setting);
-
     try {
-        // Always check IsReadyToRun and Experiment.Name because we can't get callbacks 
-        // on them and we want to avoid polling
-        int ready = Experiment_->IsReadyToRun;
-        setIntegerParam(LFReadyToRun_, ready);
-//String^ prevName = previousExperimentName_;
-//printf("Experiment_->Name=%s, previous name=%s\n", 
-//CString(Experiment_->Name), CString(prevName));
-//        if (Experiment_->Name != previousExperimentName_) {
-//            previousExperimentName_ = Experiment_->Name;
-//            String^ name = Experiment_->Name + gcnew String(".lfe");
-//            int experimentIndex = experimentList_->IndexOf(name);
-//            if (experimentIndex >= 0) {
-//                setIntegerParam(LFExperimentName_, experimentIndex);
-//            }
-//printf("Experiment_->Name=%s, name=%s, index=%d\n", 
-//CString(Experiment_->Name), CString(name), experimentIndex);
-//        }
-        
+        Object^ obj = Experiment_->GetValue(ps->setting);
+
         // Special cases that don't fall into the categories below
         if (ps->epicsParam == LFGrating_) {
             String^ value = safe_cast<String^>(obj);
@@ -1194,6 +1285,10 @@ asynStatus LightField::writeOctet(asynUser *pasynUser, const char *value,
         (function == NDFileName) ||
         (function == NDFileTemplate)) {
         status = setFilePathAndName(false);
+    }
+    else if ((function == LFBackgroundPath_) ||
+             (function == LFBackgroundFile_)){
+        status = setBackgroundFile();
     }
     else {
         /* If this parameter belongs to a base class call its method */
