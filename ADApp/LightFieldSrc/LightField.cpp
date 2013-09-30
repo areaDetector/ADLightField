@@ -14,6 +14,7 @@
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #include <epicsTime.h>
 #include <epicsThread.h>
@@ -160,9 +161,6 @@ protected:
     #define LAST_LF_PARAM LFFileName_
          
 private:                               
-    gcroot<PrincetonInstruments::LightField::Automation::Automation ^> Automation_;
-    gcroot<ILightFieldApplication^> Application_;
-    gcroot<IExperiment^> Experiment_;
     settingMap* findSettingMap(String^ setting);
     settingMap* findSettingMap(int param);
     asynStatus setFilePathAndName(bool doAutoIncrement);
@@ -182,9 +180,13 @@ private:
     asynStatus startAcquire();
     asynStatus addSetting(int param, String^ setting, asynParamType epicsType, LFSetting_t LFType);
     List<String^>^ buildFeatureList(String^ feature);
+    gcroot<PrincetonInstruments::LightField::Automation::Automation ^> Automation_;
+    gcroot<ILightFieldApplication^> Application_;
+    gcroot<IExperiment^> Experiment_;
     gcroot<List<String^>^> experimentList_;
     gcroot<List<String^>^> gratingList_;
     gcroot<String^> previousExperimentName_;
+    int backgroundWasEnabled_;
     bool exiting_;
     ELLLIST settingList_;
 };
@@ -237,6 +239,8 @@ extern "C" int LightFieldConfig(const char *portName, const char *experimentName
   * and sets reasonable default values for the parameters defined in this class, asynNDArrayDriver and
   * ADDriver.
   * \param[in] portName The name of the asyn port driver to be created.
+  * \param[in] experimentName The name of the experiment to open initially.  Set this to an empty string
+  *            to open the default experiment in LightField.
   * \param[in] maxBuffers The maximum number of NDArray buffers that the NDArrayPool for this driver is 
   *            allowed to allocate. Set this to -1 to allow an unlimited number of buffers.
   * \param[in] maxMemory The maximum amount of memory that the NDArrayPool for this driver is 
@@ -491,9 +495,18 @@ asynStatus LightField::openExperiment(const char *experimentName)
 
 void LightField::setAcquisitionComplete()
 {
+    int imageMode;
+    
     lock();
     setIntegerParam(ADAcquire, 0);
     setIntegerParam(ADStatus, ADStatusIdle);
+    /* If this is a background image restore the backgroundEnabled setting and set the background file */
+    getIntegerParam(ADImageMode, &imageMode);
+    if (imageMode == LFImageModeBackground) {
+        setExperimentInteger(LFBackgroundEnable_, backgroundWasEnabled_);
+        setBackgroundFile();
+    }
+        
     callParamCallbacks();
     unlock();
 }
@@ -534,6 +547,7 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
   NDArrayInfo   arrayInfo;
   int           arrayCounter;
   int           imageCounter;
+  int           arrayCallbacks;
   char          *pInput;
   size_t        dims[2];
   NDArray       *pImage;
@@ -541,61 +555,7 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
   epicsTimeStamp currentTime;
   static const char *functionName = "frameCallback";
     
-
-  IImageDataSet^ dataSet = args->ImageDataSet;
-  IImageData^ frame = dataSet->GetFrame(0, 0); 
-  Array^ array = frame->GetData();
-  switch (frame->Format) {
-    case PixelDataFormat::MonochromeUnsigned16: {
-      dataType = NDUInt16;
-      cli::array<epicsUInt16>^ data = dynamic_cast<cli::array<epicsUInt16>^>(array);
-      pin_ptr<epicsUInt16> pptr = &data[0];
-      pInput = (char *)pptr;
-      break;
-    }
-    case PixelDataFormat::MonochromeUnsigned32: {
-      dataType = NDUInt32;
-      cli::array<epicsUInt32>^ data = dynamic_cast<cli::array<epicsUInt32>^>(array);
-      pin_ptr<epicsUInt32> pptr = &data[0];
-      pInput = (char *)pptr;
-      break;
-    }
-    case PixelDataFormat::MonochromeFloating32: {
-      dataType = NDFloat32;
-      cli::array<epicsFloat32>^ data = dynamic_cast<cli::array<epicsFloat32>^>(array);
-      pin_ptr<epicsFloat32> pptr = &data[0];
-      pInput = (char *)pptr;
-      break;
-    }
-  }
-
   lock();
-
-  /* Update the image */
-  /* We save the most recent image buffer so it can be used in the read() function.
-   * Now release it before getting a new version. */
-  if (this->pArrays[0])
-      this->pArrays[0]->release();
-  /* Allocate the array */
-  dims[0] = frame->Width;
-  dims[1] = frame->Height;
-  this->pArrays[0] = pNDArrayPool->alloc(2, dims, dataType, 0, NULL);
-  if (this->pArrays[0] == NULL) {
-    asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
-      "%s:%s: error allocating buffer\n",
-      driverName, functionName);
-    unlock();
-    return;
-  }
-  pImage = this->pArrays[0];
-  pImage->getInfo(&arrayInfo);
-  // Copy the data from the input to the output
-  memcpy(pImage->pData, pInput, arrayInfo.totalBytes);
-
-  setIntegerParam(NDDataType, dataType);
-  setIntegerParam(NDArraySize,  (int)arrayInfo.totalBytes);
-  setIntegerParam(NDArraySizeX, (int)pImage->dims[0].size);
-  setIntegerParam(NDArraySizeY, (int)pImage->dims[1].size);
 
   getIntegerParam(ADNumImagesCounter, &imageCounter);
   imageCounter++;
@@ -605,23 +565,80 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
   getIntegerParam(NDArrayCounter, &arrayCounter);
   arrayCounter++;
   setIntegerParam(NDArrayCounter, arrayCounter);
-  pImage->uniqueId = arrayCounter;
-  epicsTimeGetCurrent(&currentTime);
-  pImage->timeStamp = currentTime.secPastEpoch + currentTime.nsec / 1.e9;
-  updateTimeStamp(&pImage->epicsTS);
 
-  /* Get any attributes that have been defined for this driver */
-  getAttributes(pImage->pAttributeList);
+  getIntegerParam(NDArrayCallbacks, &arrayCallbacks);
+  if (arrayCallbacks) {
+    IImageDataSet^ dataSet = args->ImageDataSet;
+    IImageData^ frame = dataSet->GetFrame(0, 0); 
+    Array^ array = frame->GetData();
+    switch (frame->Format) {
+      case PixelDataFormat::MonochromeUnsigned16: {
+        dataType = NDUInt16;
+        cli::array<epicsUInt16>^ data = dynamic_cast<cli::array<epicsUInt16>^>(array);
+        pin_ptr<epicsUInt16> pptr = &data[0];
+        pInput = (char *)pptr;
+        break;
+      }
+      case PixelDataFormat::MonochromeUnsigned32: {
+        dataType = NDUInt32;
+        cli::array<epicsUInt32>^ data = dynamic_cast<cli::array<epicsUInt32>^>(array);
+        pin_ptr<epicsUInt32> pptr = &data[0];
+        pInput = (char *)pptr;
+        break;
+      }
+      case PixelDataFormat::MonochromeFloating32: {
+        dataType = NDFloat32;
+        cli::array<epicsFloat32>^ data = dynamic_cast<cli::array<epicsFloat32>^>(array);
+        pin_ptr<epicsFloat32> pptr = &data[0];
+        pInput = (char *)pptr;
+        break;
+      }
+    }
 
-  /* Call the NDArray callback */
-  /* Must release the lock here, or we can get into a deadlock, because we can
-   * block on the plugin lock, and the plugin can be calling us */
-  unlock();
-  asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
-    "%s:%s: calling imageData callback\n", 
-    driverName, functionName);
-  doCallbacksGenericPointer(pImage, NDArrayData, 0);
-  lock();
+    /* Update the image */
+    /* We save the most recent image buffer so it can be used in the read() function.
+     * Now release it before getting a new version. */
+    if (this->pArrays[0])
+        this->pArrays[0]->release();
+    /* Allocate the array */
+    dims[0] = frame->Width;
+    dims[1] = frame->Height;
+    this->pArrays[0] = pNDArrayPool->alloc(2, dims, dataType, 0, NULL);
+    if (this->pArrays[0] == NULL) {
+      asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+        "%s:%s: error allocating buffer\n",
+        driverName, functionName);
+      unlock();
+      return;
+    }
+    pImage = this->pArrays[0];
+    pImage->getInfo(&arrayInfo);
+    // Copy the data from the input to the output
+    memcpy(pImage->pData, pInput, arrayInfo.totalBytes);
+
+    setIntegerParam(NDDataType, dataType);
+    setIntegerParam(NDArraySize,  (int)arrayInfo.totalBytes);
+    setIntegerParam(NDArraySizeX, (int)pImage->dims[0].size);
+    setIntegerParam(NDArraySizeY, (int)pImage->dims[1].size);
+
+    pImage->uniqueId = arrayCounter;
+    epicsTimeGetCurrent(&currentTime);
+    pImage->timeStamp = currentTime.secPastEpoch + currentTime.nsec / 1.e9;
+    updateTimeStamp(&pImage->epicsTS);
+
+    /* Get any attributes that have been defined for this driver */
+    getAttributes(pImage->pAttributeList);
+
+    /* Call the NDArray callback */
+    /* Must release the lock here, or we can get into a deadlock, because we can
+     * block on the plugin lock, and the plugin can be calling us */
+    unlock();
+    asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
+      "%s:%s: calling imageData callback\n", 
+      driverName, functionName);
+    doCallbacksGenericPointer(pImage, NDArrayData, 0);
+    lock();
+  }
 
   // Do callbacks on parameters
   callParamCallbacks();
@@ -632,12 +649,11 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
 asynStatus LightField::startAcquire()
 {
     int imageMode;
-    int backgroundEnable;
     static const char *functionName = "startAcquire";
 
     getIntegerParam(ADImageMode, &imageMode);
     setIntegerParam(ADStatus, ADStatusAcquire);
-    getIntegerParam(LFBackgroundEnable_, &backgroundEnable);
+    getIntegerParam(LFBackgroundEnable_, &backgroundWasEnabled_);
     callParamCallbacks();
 
     switch (imageMode) {
@@ -705,6 +721,8 @@ asynStatus LightField::setBackgroundFile()
     char filePath[MAX_FILENAME_LEN];
     char fileName[MAX_FILENAME_LEN];
     char fullFileName[MAX_FILENAME_LEN];
+    struct stat buff;
+    int stat_ret;
     asynStatus status;
     size_t len;
     
@@ -725,9 +743,14 @@ asynStatus LightField::setBackgroundFile()
     if (len < 0) return asynError;
     Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));    
     Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));
-    Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsBackgroundCorrectionReferenceFile, 
-                          gcnew String(fullFileName));    
     setStringParam(LFBackgroundFullFile_, fullFileName); 
+    // If this file actually exists then set the background correction file to this.
+    // It might not exist if we have not collected it yet.
+    stat_ret = stat(fullFileName, &buff);
+    if (!stat_ret && (buff.st_mode & S_IFREG)) {
+        Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsBackgroundCorrectionReferenceFile, 
+                              gcnew String(fullFileName));    
+    }
     return asynSuccess;   
 }
 
