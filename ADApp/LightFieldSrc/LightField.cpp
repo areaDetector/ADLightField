@@ -504,7 +504,6 @@ asynStatus LightField::getExperimentList()
     int values[MAX_ENUM_STATES];
     int severities[MAX_ENUM_STATES];
     int count = 0;
-    int i = 0;
     List<String^>^ list;
 
     experimentList_ = gcnew List<String^>(Experiment_->GetSavedExperiments());
@@ -513,7 +512,7 @@ asynStatus LightField::getExperimentList()
       for each(String^% str in list) {
         CString enumString = str;
         strings[count] = epicsStrDup(enumString);
-        values[count] = i;
+        values[count] = count;
         severities[count] = 0;
         count++;
         if (count >= MAX_ENUM_STATES) break;
