@@ -33,6 +33,7 @@
 #include <epicsExport.h>
 
 #define LF_POLL_TIME 1.0
+#define MAX_ENUM_STATES 16
 
 using namespace System;
 using namespace System::Collections::Generic;
@@ -55,6 +56,7 @@ static const char *driverName = "LightField";
 #define LFEntranceSideWidthString      "LF_ENTRANCE_SIDE_WIDTH"
 #define LFExitSelectedString           "LF_EXIT_SELECTED"
 #define LFExperimentNameString         "LF_EXPERIMENT_NAME"
+#define LFUpdateExperimentsString      "LF_UPDATE_EXPERIMENTS"
 #define LFShutterModeString            "LF_SHUTTER_MODE"
 #define LFBackgroundPathString         "LF_BACKGROUND_PATH"
 #define LFBackgroundFileString         "LF_BACKGROUND_FILE"
@@ -136,6 +138,7 @@ protected:
     int LFEntranceSideWidth_;
     int LFExitSelected_;
     int LFExperimentName_;
+    int LFUpdateExperiments_;
     int LFShutterMode_;
     int LFBackgroundPath_;
     int LFBackgroundFile_;
@@ -175,6 +178,7 @@ private:
     asynStatus getExperimentValue(int param);
     asynStatus getExperimentValue(settingMap *ps);
     asynStatus openExperiment(const char *experimentName);
+    asynStatus getExperimentList();
     asynStatus getROI();
     asynStatus setROI();
     asynStatus startAcquire();
@@ -279,6 +283,7 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFEntranceSideWidthString,       asynParamInt32,   &LFEntranceSideWidth_);
     createParam(LFExitSelectedString,            asynParamInt32,   &LFExitSelected_);
     createParam(LFExperimentNameString,          asynParamInt32,   &LFExperimentName_);
+    createParam(LFUpdateExperimentsString,       asynParamInt32,   &LFUpdateExperiments_);
     createParam(LFShutterModeString,             asynParamInt32,   &LFShutterMode_);
     createParam(LFBackgroundPathString,          asynParamOctet,   &LFBackgroundPath_);
     createParam(LFBackgroundFileString,          asynParamOctet,   &LFBackgroundFile_);
@@ -398,6 +403,8 @@ LightField::LightField(const char *portName, const char* experimentName,
 
     previousExperimentName_ = gcnew String(Experiment_->Name);
 
+    getExperimentList();
+
     // Open the experiment
     openExperiment(experimentName);
     
@@ -472,7 +479,6 @@ asynStatus LightField::openExperiment(const char *experimentName)
     setExperimentInteger(ExperimentSettings::FileNameGenerationAttachTime, false);
     setExperimentInteger(ExperimentSettings::FileNameGenerationAttachIncrement, false);
 
-    experimentList_ = gcnew List<String^>(Experiment_->GetSavedExperiments());
     gratingList_    = gcnew List<String^>(buildFeatureList(SpectrometerSettings::GratingSelected));
         
     // Read the settings from the camera and ask for callbacks on each setting
@@ -490,6 +496,37 @@ asynStatus LightField::openExperiment(const char *experimentName)
     
     done:
     return status;
+}
+
+asynStatus LightField::getExperimentList()
+{
+    char *strings[MAX_ENUM_STATES];
+    int values[MAX_ENUM_STATES];
+    int severities[MAX_ENUM_STATES];
+    int count = 0;
+    int i = 0;
+    List<String^>^ list;
+
+    experimentList_ = gcnew List<String^>(Experiment_->GetSavedExperiments());
+    list = experimentList_;
+    if (list->Count > 0) {
+      for each(String^% str in list) {
+        CString enumString = str;
+        strings[count] = epicsStrDup(enumString);
+        values[count] = i;
+        severities[count] = 0;
+        count++;
+        if (count >= MAX_ENUM_STATES) break;
+      }
+    }
+    else {
+      strings[0] = epicsStrDup("N.A.");
+      values[0] = 0;
+      severities[0] = 0;
+      count = 1;
+    }
+    doCallbacksEnum(strings, values, severities, count, LFExperimentName_, 0);
+    return asynSuccess;
 }
 
 
@@ -1187,6 +1224,9 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 (function == LFSyncMasterEnable_)) {
         status = setExperimentInteger(function, value); 
         
+     } else if (function == LFUpdateExperiments_) {
+        status = getExperimentList();
+
      } else if (function == LFGrating_) {
         List<String^>^ list = gratingList_;
         if (value < list->Count) {
