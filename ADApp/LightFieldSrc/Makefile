@@ -23,6 +23,7 @@ PROD_NAME = LightFieldApp
 ifeq (windows-x64, $(findstring windows-x64, $(T_A)))
   ifeq ($(STATIC_BUILD), NO)
     PROD_IOC  += $(PROD_NAME)
+    PROD_IOC_WIN32 += LFTest1
     BIN_INSTALLS += ../PrincetonInstruments.LightField.AutomationV4.dll
     BIN_INSTALLS += ../PrincetonInstruments.LightFieldAddInSupportServices.dll
     BIN_INSTALLS += ../PrincetonInstruments.LightFieldViewV4.dll
@@ -42,7 +43,6 @@ LightFieldApp_LIBS          += LightField
 include $(TOP)/ADApp/commonDriverMakefile
 endif
 
-PROD_IOC_WIN32 += LFTest1
 LFTest1_SRCS += LFTest1.cpp
 
 #=============================
