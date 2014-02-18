@@ -10,7 +10,7 @@
     <h1>
       areaDetector LightField driver</h1>
     <h2>
-      September 29, 2013</h2>
+      February 18, 2014</h2>
     <h2>
       Mark Rivers</h2>
     <h2>
@@ -31,51 +31,57 @@
   <h2 id="Introduction" style="text-align: left">
     Introduction</h2>
   <p>
-    This is a driver for recent <a href="http://www.princetoninstruments.com/">
-      Princeton Instruments</a> detectors including the ProEM, PIXIS, PI-MAX3, PI-MAX4, PyLoN, 
-      and Quad-RO.  It also supports the Acton Series spectrographs.
+    This is an <a href="http://www.aps.anl.gov/epics/">EPICS</a> <a href="areaDetector.html">
+      areaDetector</a> driver for recent <a href="http://www.princetoninstruments.com/">
+        Princeton Instruments</a> detectors including the ProEM, PIXIS, PI-MAX3, PI-MAX4,
+    PyLoN, and Quad-RO. It also supports the Acton Series spectrographs.
   </p>
   <p>
     The interface to the detector is via a the MicroSoft Common Language Runtime (CLR)
-     interface to the <b>LightField</b>
-    program that Princeton Instruments sells. The areaDetector driver effectively "drives" LightField
-    through the CLR interface, performing most of the same operations that can be performed
-    using the LightField GUI. The advantage of this communication mechanism is that the
-    user can continue to use LightField for viewing images and for configuration operations.
-    LightField is automatically started when the areaDetector software is started.
+    interface to the <b>LightField</b> program that Princeton Instruments sells. The
+    areaDetector driver effectively "drives" LightField through the CLR interface, performing
+    most of the same operations that can be performed using the LightField GUI. The
+    advantage of this communication mechanism is that the user can continue to use LightField
+    for viewing images and for configuration operations. LightField is automatically
+    started when the areaDetector software is started.
   </p>
   <p>
-    Because EPICS and the LightField GUI can control many of the same parameters the user
-    must be aware of the interactions between the two control systems. The basic rule
-    is that the value of a parameter will be determined by whichever control system
-    last wrote to that parameter. The LightField widget will display the
-    current value of a parameter no matter how it was last changed. EPICS will correctly display
-    the current value of the parameter in the "readback" record, which typically ends in "_RBV",
-    no matter how the value was last changed.  However the EPICS output record does not currently
-    update if the value is changed in LightField.  This may change in a future version of asyn
-    device support.
+    Because EPICS and the LightField GUI can control many of the same parameters the
+    user must be aware of the interactions between the two control systems. The basic
+    rule is that the value of a parameter will be determined by whichever control system
+    last wrote to that parameter. The LightField widget will display the current value
+    of a parameter no matter how it was last changed. EPICS will correctly display the
+    current value of the parameter in the "readback" record, which typically ends in
+    "_RBV", no matter how the value was last changed. However the EPICS output record
+    does not currently update if the value is changed in LightField. This may change
+    in a future version of asyn device support.
   </p>
   <p>
     This driver inherits from <a href="areaDetectorDoc.html#ADDriver">ADDriver</a>.
     It implements many of the parameters <a href="areaDetectorDoxygenHTML/asyn_n_d_array_driver_8h.html">
       asynNDArrayDriver.h</a> and in <a href="areaDetectorDoxygenHTML/_a_d_driver_8h.html">
         ADArrayDriver.h</a>. It also implements a number of parameters that are specific
-    to the LightField application.The <a href="areaDetectorDoxygenHTML/class_light_field.html">LightField
-      class documentation</a> describes this class in detail.</p>
+    to the LightField application.The <a href="areaDetectorDoxygenHTML/class_light_field.html">
+      LightField class documentation</a> describes this class in detail.</p>
+  <p>
+    NOTE: ALL OF THE TEXT FROM HERE ON IS CUT AND PASTE FROM THE ROPER DRIVER AND NEEDS
+    UPDATING!!</p>
   <h2 id="StandardNotes" style="text-align: left">
     Implementation of standard driver parameters</h2>
   <p>
     The following table describes how the LightField driver implements some of the standard
     driver parameters. Note that there are 3 possible levels of nested acquisition looping
-    when using the LightField driver. From the innermost to outermost loop these are as follows:</p>
+    when using the LightField driver. From the innermost to outermost loop these are
+    as follows:</p>
   <ol>
     <li>ADNumExposures ($(P)$(R)NumExposures). This controls the number of exposures per
       image. This is called "accumulations" in LightField's terminology.</li>
     <li>ADNumImages ($(P)$(R)NumImages). This controls the number of images per acquisition.
-      This is also called "number of images" in LightField's terminology. These images will
-      all be acquired into a single 3-D array, and saved to a single SPE file in WinView.</li>
-    <li>LightFieldNumAcquisitions ($(P)$(R)NumNumAcquisitions). This controls the number of
-      times that the driver will repeat an acquisition sequence. This is has no equivalent
+      This is also called "number of images" in LightField's terminology. These images
+      will all be acquired into a single 3-D array, and saved to a single SPE file in
+      WinView.</li>
+    <li>LightFieldNumAcquisitions ($(P)$(R)NumNumAcquisitions). This controls the number
+      of times that the driver will repeat an acquisition sequence. This is has no equivalent
       in WinView, it is handled entirely by the areaDetector driver. It can be used to
       acquire multiple data sets, where each is controlled by the above parameters.</li>
   </ol>
@@ -196,10 +202,10 @@
   <h2 id="Driver_parameters" style="text-align: left">
     LightField specific parameters</h2>
   <p>
-    The LightField driver implements the following parameters in addition to those in asynNDArrayDriver.h
-    and ADDriver.h. Note that to reduce the width of this table the parameter index
-    variable names have been split into 2 lines, but these are just a single name, for
-    example <code>marCCDState</code>.
+    The LightField driver implements the following parameters in addition to those in
+    asynNDArrayDriver.h and ADDriver.h. Note that to reduce the width of this table
+    the parameter index variable names have been split into 2 lines, but these are just
+    a single name, for example <code>marCCDState</code>.
   </p>
   <table border="1" cellpadding="2" cellspacing="2" style="text-align: left">
     <tbody>
@@ -350,8 +356,8 @@
   <h2 id="Configuration">
     Configuration</h2>
   <p>
-    The LightField driver is created with the LightFieldConfig command, either from C/C++ or from
-    the EPICS IOC shell.</p>
+    The LightField driver is created with the LightFieldConfig command, either from
+    C/C++ or from the EPICS IOC shell.</p>
   <pre>int LightFieldConfig(const char *portName,
                 int maxBuffers, size_t maxMemory,
                 int priority, int stackSize)
@@ -359,8 +365,8 @@
   <p>
     For details on the meaning of the parameters to this function refer to the detailed
     documentation on the LightFieldConfig function in the <a href="areaDetectorDoxygenHTML/LightField_8cpp.html">
-      LightField.cpp documentation</a> and in the documentation for the constructor for the
-    <a href="areaDetectorDoxygenHTML/classLightField.html">LightField class</a>.
+      LightField.cpp documentation</a> and in the documentation for the constructor
+    for the <a href="areaDetectorDoxygenHTML/classLightField.html">LightField class</a>.
   </p>
   <p>
     There an example IOC boot directory and startup script (<a href="LightField_st_cmd.html">iocBoot/iocLightField/st.cmd)</a>
@@ -371,8 +377,8 @@
   <p>
     The following show the MEDM screens that are used to control the LightField detector.
     Note that the general purpose screen ADBase.adl can be used, but it exposes a few
-    controls that are not applicable to the LightField, and lacks some fields that are important
-    for the LightField.</p>
+    controls that are not applicable to the LightField, and lacks some fields that are
+    important for the LightField.</p>
   <p>
     <code>LightField.adl</code> is the main screen used to control the LightField driver.
   </p>
@@ -399,8 +405,8 @@
     Performance measurements</h2>
   <p>
     The following measurements were done to demonstrate the performance that can be
-    obtained with the areaDetector LightField driver. These measurements were made with a
-    CoolSnap-HQ2 detector which has 1392x1040 pixels. The acquisition time was 0.01
+    obtained with the areaDetector LightField driver. These measurements were made with
+    a CoolSnap-HQ2 detector which has 1392x1040 pixels. The acquisition time was 0.01
     second. The overhead per image in the table below is the total time to acquire the
     data set minus 1.00 seconds (the acquisition time) divided by 100. Acquisitions
     were done in 2 modes:</p>
@@ -591,8 +597,8 @@
       <ul>
         <li>ERROR_MESSAGE_SIZE=256 The maximum size of error messages that can be retrieved
           from WinView.</li>
-        <li>LightField_POLL_TIME=0.01 seconds. The time between polling WinView status to see when
-          acquisition is complete.</li>
+        <li>LightField_POLL_TIME=0.01 seconds. The time between polling WinView status to
+          see when acquisition is complete.</li>
       </ul>
     </li>
     <li>There is a bug in Windows XP SP2 that causes WinView to hang after about 1600
