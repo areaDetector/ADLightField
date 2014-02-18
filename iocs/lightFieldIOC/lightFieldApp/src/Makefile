@@ -6,7 +6,14 @@ include $(TOP)/configure/CONFIG
 PROD_NAME = LightFieldApp
 ifeq (windows-x64, $(findstring windows-x64, $(T_A)))
   ifeq ($(STATIC_BUILD), NO)
-    PROD_IOC  += $(PROD_NAME)
+    PROD_IOC += $(PROD_NAME)
+    # Note: Normally it is sufficient to have DLLs in the PATH environment.
+    # However, LightField won't start unless the DLLs are in the same directory as this application
+    # The DLLs need to be in the ADLightField/lightFieldApp/src directory or the library won't build
+    # so we install them into the bin directory from there.
+    BIN_INSTALLS += $(ADLIGHTFIELD)/lightFieldApp/src/PrincetonInstruments.LightField.AutomationV4.dll
+    BIN_INSTALLS += $(ADLIGHTFIELD)/lightFieldApp/src/PrincetonInstruments.LightFieldAddInSupportServices.dll
+    BIN_INSTALLS += $(ADLIGHTFIELD)/lightFieldApp/src/PrincetonInstruments.LightFieldViewV4.dll
   endif
 endif
 
