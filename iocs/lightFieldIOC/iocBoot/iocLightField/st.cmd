@@ -1,7 +1,7 @@
 < envPaths
 errlogInit(20000)
 
-dbLoadDatabase("$(ADLIGHTFIELD)/dbd/LightFieldApp.dbd")
+dbLoadDatabase("$(TOP)/dbd/LightFieldApp.dbd")
 
 LightFieldApp_registerRecordDeviceDriver(pdbbase) 
 
