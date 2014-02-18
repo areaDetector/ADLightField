@@ -10,9 +10,6 @@ ifeq (windows-x64, $(findstring windows-x64, $(T_A)))
     LIBRARY_IOC = LightField
     LIB_SRCS += LightField.cpp
     PROD_IOC_WIN32 += LFTest1
-    BIN_INSTALLS += ../PrincetonInstruments.LightField.AutomationV4.dll
-    BIN_INSTALLS += ../PrincetonInstruments.LightFieldAddInSupportServices.dll
-    BIN_INSTALLS += ../PrincetonInstruments.LightFieldViewV4.dll
   endif
 endif
 
