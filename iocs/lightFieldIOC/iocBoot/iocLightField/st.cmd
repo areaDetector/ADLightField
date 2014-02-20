@@ -12,7 +12,7 @@ epicsEnvSet("XSIZE",  "1396")
 epicsEnvSet("YSIZE",  "1040")
 epicsEnvSet("NCHANS", "2048")
 
-LightFieldConfig("$(PORT)", "", 50, 200000000)
+LightFieldConfig("$(PORT)", "", 0, 0)
 asynSetTraceIOMask("$(PORT)",0,2)
 #asynSetTraceMask("$(PORT)",0,255)
 dbLoadRecords("$(ADCORE)/db/ADBase.template",     "P=$(PREFIX),R=cam1:,PORT=$(PORT),ADDR=0,TIMEOUT=1")
@@ -31,4 +31,4 @@ set_requestfile_path("$(ADLIGHTFIELD)/lightFieldApp/Db")
 iocInit()
 
 # save things every thirty seconds
-create_monitor_set("auto_settings.req", 30,"P=$(PREFIX),D=cam1:")
+create_monitor_set("auto_settings.req", 30,"P=$(PREFIX)")
