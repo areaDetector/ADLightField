@@ -1,5 +1,0 @@
-          To Do in LightField driver
-
-Number of acquisitions
-
-Restore previous state of background enable in image completion callback?
