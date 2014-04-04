@@ -22,3 +22,9 @@ Release Notes
 R2-0
 ----
 * New driver added in this release.
+
+
+Future Releases
+===============
+* Support mumber of acquisitions (outer-most loop)
+* Restore previous state of background enable in image completion callback?
