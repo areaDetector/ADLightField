@@ -19,7 +19,12 @@ files respectively, in the configure/ directory of the appropriate release of th
 Release Notes
 =============
 
-R2-0
+R2-1 (19-Aug-2014)
+----
+* Finished documentation, LightFieldDoc.html.
+
+
+R2-0 (4-Apr-2014)
 ----
 * New driver added in this release.
 
