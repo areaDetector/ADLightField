@@ -884,6 +884,9 @@
   <p>
     The following are some current restrictions of the LightField driver:</p>
   <ul>
+    <li>The driver has only been successfully built with the commercial version of Visual
+      Studio. It does not seem to be possible to build with the free Express version of
+      Visual Studio because it lacks support for the Microsoft Foundation Classes (MFC).</li>
     <li>If LightField encounters an error it will crash the IOC. The driver establishes
       an exception handler, but this does not seem to work correctly with the LightField
       CLR interface.</li>
