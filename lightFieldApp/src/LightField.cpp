@@ -1382,22 +1382,37 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
         // LightField units are us 
         value = value*1e6;
     }
+    
+    // ADAcquireTime, LFRepGateWidth, and LFRepGateDelay can be set even if we are acquiring
+    if (function == ADAcquireTime)
+        status = setExperimentDouble(function, value);
+
+    else if (function == LFRepGateWidth_) {
+        double delay;
+        getDoubleParam(function+1, &delay);
+        status = setExperimentPulse(function, value, delay);
+    }
+    
+    else if (function == LFRepGateDelay_) {
+        double width;
+        getDoubleParam(function-1, &width);
+        status = setExperimentPulse(function-1, width, value);
+    } 
+
     if (currentlyAcquiring) {
         asynPrint(pasynUser, ASYN_TRACE_ERROR, 
               "%s:%s: error, attempt to change setting while acquiring, function=%d, value=%f\n", 
               driverName, functionName, function, value);
-
+        goto done;
     } 
     
-    else if ((function == ADAcquireTime) ||
-             (function == ADTemperature) ||
+    if (     (function == ADTemperature) ||
              (function == LFGratingWavelength_) ||
              (function == LFTriggerFrequency_) ||
              (function == LFSyncMaster2Delay_))
         status = setExperimentDouble(function, value);
 
-    else if ((function == LFRepGateWidth_) ||
-             (function == LFSeqStartGateWidth_) ||
+    else if ((function == LFSeqStartGateWidth_) ||
              (function == LFSeqEndGateWidth_) ||
              (function == LFAuxWidth_)) {
         double delay;
@@ -1405,8 +1420,7 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
         status = setExperimentPulse(function, value, delay);
     }
 
-    else if ((function == LFRepGateDelay_) ||
-             (function == LFSeqStartGateDelay_) ||
+    else if ((function == LFSeqStartGateDelay_) ||
              (function == LFSeqEndGateDelay_) ||
              (function == LFAuxDelay_)) {
         double width;
@@ -1414,10 +1428,9 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
         status = setExperimentPulse(function-1, width, value);
     } 
 
-    else {
-        /* If this parameter belongs to a base class call its method */
-        if (function < FIRST_LF_PARAM) status = ADDriver::writeFloat64(pasynUser, value);
-    }
+    done:
+    /* If this parameter belongs to a base class call its method */
+    if (function < FIRST_LF_PARAM) status = ADDriver::writeFloat64(pasynUser, value);
 
     /* Do callbacks so higher layers see any changes */
     callParamCallbacks();
