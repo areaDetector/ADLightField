@@ -24,4 +24,6 @@ $(P)$(R)LFSeqEndGateWidth
 $(P)$(R)LFSeqEndGateDelay
 $(P)$(R)LFAuxWidth
 $(P)$(R)LFAuxDelay
+file "ADBase_settings.req", P=$(P), R=$(R)
+file "NDFile_settings.req", P=$(P), R=$(R)
 

@@ -3,6 +3,7 @@
 # September 5, 2013
 
 include "ADBase.template"
+include "NDFile.template"
 
 # These are the records from ADBase.template that we modify some fields for
 
