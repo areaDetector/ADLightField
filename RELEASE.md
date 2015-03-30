@@ -24,7 +24,7 @@ R2-2 (30-March-2015)
 * Add capability to change ADAcquireTime, LFRepGateWidth, or LFRepGateDelay 
   while acquisition is active.  This works in both normal acquire and preview
   focus mode.  This matches the capability of LightField.
-* Changed st.cmd for compatibility with ADCore R2-2.
+* Changes for compatibility with ADCore R2-2.
 
 
 R2-1 (19-Aug-2014)
