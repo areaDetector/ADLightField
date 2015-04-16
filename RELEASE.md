@@ -19,7 +19,7 @@ files respectively, in the configure/ directory of the appropriate release of th
 Release Notes
 =============
 
-R2-2 (30-March-2015)
+R2-2 (16-April-2015)
 ----
 * Add capability to change ADAcquireTime, LFRepGateWidth, or LFRepGateDelay 
   while acquisition is active.  This works in both normal acquire and preview
