@@ -19,10 +19,6 @@ files respectively, in the configure/ directory of the appropriate release of th
 Release Notes
 =============
 
-R2-3 (September 8, 2015)
-* Updated Makefile and st.cmd to be compatible with ADCore R2-4 and ADExample R2-0.
-
- 
 R2-2 (16-April-2015)
 ----
 * Add capability to change ADAcquireTime, LFRepGateWidth, or LFRepGateDelay 
