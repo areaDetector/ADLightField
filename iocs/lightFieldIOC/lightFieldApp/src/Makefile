@@ -27,7 +27,7 @@ PROD_SRCS += $(PROD_NAME)_registerRecordDeviceDriver.cpp $(PROD_NAME)Main.cpp
 # Add locally compiled object code
 PROD_LIBS += LightField
 
-include $(ADEXAMPLE)/exampleApp/commonDriverMakefile
+include $(ADCORE)/ADApp/commonDriverMakefile
 
 #=============================
 
