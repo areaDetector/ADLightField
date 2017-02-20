@@ -19,6 +19,13 @@ files respectively, in the configure/ directory of the appropriate release of th
 Release Notes
 =============
 
+R2-3 (20-February-2017)
+----
+* Changed layout of medm screen for ADCore R2-6.
+* Changed default IOC arch from windows-x64-dynamic to windows-x64 to be consistent with the 
+  standard ARCH names in EPICS base.
+
+
 R2-2 (16-April-2015)
 ----
 * Add capability to change ADAcquireTime, LFRepGateWidth, or LFRepGateDelay 
