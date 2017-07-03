@@ -1,13 +1,13 @@
 
 file {
-	name="/home/epics/support/areaDetector-2-6/ADLightField/lightFieldApp/op/adl/LightField.adl"
+	name="/home/epics/devel/areaDetector-3-1/ADLightField/lightFieldApp/op/adl/LightField.adl"
 	version=030109
 }
 display {
 	object {
 		x=216
 		y=94
-		width=1100
+		width=1070
 		height=880
 	}
 	clr=14
@@ -147,7 +147,7 @@ composite {
 		x=715
 		y=675
 		width=350
-		height=60
+		height=110
 	}
 	"composite name"=""
 	"composite file"="ADAttrFile.adl"
