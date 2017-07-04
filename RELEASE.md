@@ -19,6 +19,14 @@ files respectively, in the configure/ directory of the appropriate release of th
 Release Notes
 =============
 
+R2-4 (04-July-2017)
+----
+* Changed layout of medm screen for ADCore R3-0.
+* Changed LightField.template to prevent crashes
+  - LFExperimentName to PINI=NO so it does load the experiment at startup. This seems to sometimes cause problems.
+  - Set LFRepGateWidth.DRVL = 1.e-10 so it cannot be set to 0.
+
+
 R2-3 (20-February-2017)
 ----
 * Changed layout of medm screen for ADCore R2-6.
