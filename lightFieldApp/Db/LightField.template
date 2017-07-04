@@ -160,7 +160,7 @@ record(mbbi, "$(P)$(R)LFShutterMode_RBV")
 
 record(mbbo, "$(P)$(R)LFExperimentName")
 {
-    field(PINI, "YES")
+    field(PINI, "NO")
     field(DTYP, "asynInt32")
     field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_EXPERIMENT_NAME")
 }
@@ -438,6 +438,8 @@ record(ao, "$(P)$(R)LFRepGateWidth")
     field(PINI, "YES")
     field(DTYP, "asynFloat64")
     field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_REP_GATE_WIDTH")
+    field(DRVL, "1.e-10")
+    field(DRVH, "1000")
     field(PREC, "2")
 }
 
