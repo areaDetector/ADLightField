@@ -53,7 +53,11 @@ static const char *driverName = "LightField";
 #define LFNumAcquisitionsString        "LF_NUM_ACQUISITIONS"
 #define LFGratingString                "LF_GRATING"
 #define LFGratingWavelengthString      "LF_GRATING_WAVELENGTH"
+#define LFSAGEnableString              "LF_SAG_ENABLE"
+#define LFSAGStartingWavelengthString  "LF_SAG_STARTING_WAVELENGTH"
+#define LFSAGEndingWavelengthString    "LF_SAG_ENDING_WAVELENGTH"
 #define LFEntranceSideWidthString      "LF_ENTRANCE_SIDE_WIDTH"
+#define LFEntranceSelectedString       "LF_ENTRANCE_SELECTED"
 #define LFExitSelectedString           "LF_EXIT_SELECTED"
 #define LFExperimentNameString         "LF_EXPERIMENT_NAME"
 #define LFUpdateExperimentsString      "LF_UPDATE_EXPERIMENTS"
@@ -135,7 +139,11 @@ protected:
     int LFNumAcquisitions_;
     int LFGrating_;
     int LFGratingWavelength_;
+    int LFSAGEnable_;
+    int LFSAGStartingWavelength_;
+    int LFSAGEndingWavelength_;
     int LFEntranceSideWidth_;
+    int LFEntranceSelected_;
     int LFExitSelected_;
     int LFExperimentName_;
     int LFUpdateExperiments_;
@@ -280,7 +288,11 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFNumAcquisitionsString,         asynParamInt32,   &LFNumAcquisitions_);
     createParam(LFGratingString,                 asynParamInt32,   &LFGrating_);
     createParam(LFGratingWavelengthString,     asynParamFloat64,   &LFGratingWavelength_);
+    createParam(LFSAGEnableString,               asynParamInt32,   &LFSAGEnable_);
+    createParam(LFSAGStartingWavelengthString, asynParamFloat64,   &LFSAGStartingWavelength_);
+    createParam(LFSAGEndingWavelengthString,   asynParamFloat64,   &LFSAGEndingWavelength_);
     createParam(LFEntranceSideWidthString,       asynParamInt32,   &LFEntranceSideWidth_);
+    createParam(LFEntranceSelectedString,        asynParamInt32,   &LFEntranceSelected_);
     createParam(LFExitSelectedString,            asynParamInt32,   &LFExitSelected_);
     createParam(LFExperimentNameString,          asynParamInt32,   &LFExperimentName_);
     createParam(LFUpdateExperimentsString,       asynParamInt32,   &LFUpdateExperiments_);
@@ -336,6 +348,8 @@ LightField::LightField(const char *portName, const char* experimentName,
                 asynParamInt32, LFSettingInt64);
     addSetting(LFEntranceSideWidth_,SpectrometerSettings::OpticalPortEntranceSideWidth,                         
                 asynParamInt32, LFSettingInt32);
+    addSetting(LFEntranceSelected_,SpectrometerSettings::OpticalPortEntranceSelected,                         
+                asynParamInt32, LFSettingInt32);
     addSetting(LFExitSelected_,     SpectrometerSettings::OpticalPortExitSelected,                              
                 asynParamInt32, LFSettingEnum);
     addSetting(LFShutterMode_,      CameraSettings::ShutterTimingMode,                                          
@@ -347,6 +361,12 @@ LightField::LightField(const char *portName, const char* experimentName,
     addSetting(LFGrating_,          SpectrometerSettings::GratingSelected,                              
                 asynParamInt32, LFSettingString);
     addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,                              
+                asynParamFloat64, LFSettingDouble);
+    addSetting(LFSAGEnable_, ExperimentSettings::StepAndGlueEnabled,           
+                asynParamInt32, LFSettingBoolean);
+    addSetting(LFSAGStartingWavelength_, ExperimentSettings::StepAndGlueStartingWavelength,                              
+                asynParamFloat64, LFSettingDouble);
+    addSetting(LFSAGEndingWavelength_, ExperimentSettings::StepAndGlueEndingWavelength,                              
                 asynParamFloat64, LFSettingDouble);
     addSetting(LFIntensifierEnable_, CameraSettings::IntensifierEnabled,                              
                 asynParamInt32, LFSettingBoolean);
@@ -1306,7 +1326,9 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 (function == LFGain_) ||
                 (function == LFShutterMode_) ||
                 (function == LFEntranceSideWidth_) ||
+                (function == LFEntranceSelected_) ||
                 (function == LFExitSelected_) ||
+                (function == LFSAGEnable_) ||
                 (function == LFBackgroundEnable_) ||
                 (function == LFIntensifierEnable_) ||
                 (function == LFIntensifierGain_) ||
@@ -1404,6 +1426,8 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
     
     if (     (function == ADTemperature) ||
              (function == LFGratingWavelength_) ||
+             (function == LFSAGStartingWavelength_) ||
+             (function == LFSAGEndingWavelength_) ||
              (function == LFTriggerFrequency_) ||
              (function == LFSyncMaster2Delay_))
         status = setExperimentDouble(function, value);
