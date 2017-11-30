@@ -432,7 +432,6 @@ asynStatus LightField::addSetting(int param, String^ setting, asynParamType epic
 asynStatus LightField::openExperiment(const char *experimentName) 
 {
     static const char *functionName = "openExperiment";
-    asynStatus status = asynSuccess;
     
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
@@ -467,9 +466,7 @@ asynStatus LightField::openExperiment(const char *experimentName)
         asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
             "%s:%s: error, cannot find camera\n",
             driverName, functionName);
-        status = asynError;
-        goto done;
-    }
+     }
 
     setStringParam (ADManufacturer, "Princeton Instruments");
     setStringParam (ADModel, cameraName);
@@ -497,10 +494,9 @@ asynStatus LightField::openExperiment(const char *experimentName)
     }
     Experiment_->FilterSettingChanged(filterList);
     
-    done:
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: exit\n", driverName, functionName);
-    return status;
+    return asynSuccess;
 }
 
 asynStatus LightField::getExperimentList()
