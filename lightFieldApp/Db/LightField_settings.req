@@ -4,8 +4,12 @@ $(P)$(R)LFGain
 $(P)$(R)LFShutterMode
 $(P)$(R)LFExperimentName
 $(P)$(R)LFGrating
-$(P)$(R)LFGratingWavelength
+$(P)$(R)LFGratingWL
+$(P)$(R)LFSAGEnable
+$(P)$(R)LFSAGStartingWL
+$(P)$(R)LFSAGEndingWL
 $(P)$(R)LFEntranceWidth
+$(P)$(R)LFEntrancePort
 $(P)$(R)LFExitPort
 $(P)$(R)LFBackgroundPath
 $(P)$(R)LFBackgroundFile
