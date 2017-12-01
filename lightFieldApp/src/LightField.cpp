@@ -63,6 +63,7 @@ static const char *driverName = "LightField";
 #define LFUpdateExperimentsString      "LF_UPDATE_EXPERIMENTS"
 #define LFShutterModeString            "LF_SHUTTER_MODE"
 #define LFBackgroundPathString         "LF_BACKGROUND_PATH"
+#define LFBackgroundPathExistsString   "LF_BACKGROUND_PATH_EXISTS"
 #define LFBackgroundFileString         "LF_BACKGROUND_FILE"
 #define LFBackgroundFullFileString     "LF_BACKGROUND_FULL_FILE"
 #define LFBackgroundEnableString       "LF_BACKGROUND_ENABLE"
@@ -149,6 +150,7 @@ protected:
     int LFUpdateExperiments_;
     int LFShutterMode_;
     int LFBackgroundPath_;
+    int LFBackgroundPathExists_;
     int LFBackgroundFile_;
     int LFBackgroundFullFile_;
     int LFBackgroundEnable_;
@@ -298,6 +300,7 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFUpdateExperimentsString,       asynParamInt32,   &LFUpdateExperiments_);
     createParam(LFShutterModeString,             asynParamInt32,   &LFShutterMode_);
     createParam(LFBackgroundPathString,          asynParamOctet,   &LFBackgroundPath_);
+    createParam(LFBackgroundPathExistsString,    asynParamInt32,   &LFBackgroundPathExists_);
     createParam(LFBackgroundFileString,          asynParamOctet,   &LFBackgroundFile_);
     createParam(LFBackgroundFullFileString,      asynParamOctet,   &LFBackgroundFullFile_);
     createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
@@ -786,8 +789,7 @@ asynStatus LightField::setFilePathAndName(bool doAutoIncrement)
         "%s:%s: entry\n", driverName, functionName);
     
     status = checkPath();  // This appends trailing "/" if there is no trailing "/" or "\"
-    status |= getStringParam(NDFilePath, sizeof(filePath), filePath);
-    if (status) return asynError; 
+    getStringParam(NDFilePath, sizeof(filePath), filePath);
     // Remove trailing \ or / because LightField won't accept it
     len = strlen(filePath);
     if (len > 0) filePath[len-1] = 0;        
@@ -816,10 +818,11 @@ asynStatus LightField::setFilePathAndName(bool doAutoIncrement)
 
 asynStatus LightField::setBackgroundFile()
 {
-    char filePath[MAX_FILENAME_LEN];
+    std::string filePath;
     char fileName[MAX_FILENAME_LEN];
     char fullFileName[MAX_FILENAME_LEN];
     struct stat buff;
+    bool pathExists;
     int stat_ret;
     asynStatus status;
     size_t len;
@@ -828,22 +831,32 @@ asynStatus LightField::setBackgroundFile()
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
     
-    status = getStringParam(LFBackgroundPath_, sizeof(filePath), filePath);
-    if (status) return asynError; 
+    status = getStringParam(LFBackgroundPath_, filePath);
+    pathExists = checkPath(filePath);
+    setIntegerParam(LFBackgroundPathExists_, pathExists?1:0);
+    if (!pathExists) {
+        // The directory does not exist so try to create it
+        int pathDepth;
+        getIntegerParam(NDFileCreateDir, &pathDepth);
+        status = createFilePath(filePath.c_str(), pathDepth);
+         pathExists = checkPath(filePath);
+        setIntegerParam(LFBackgroundPathExists_, pathExists?1:0);
+        if (!pathExists) return asynError;
+    }
     // Remove trailing '\' or '/'
-    len = strlen(filePath);
+    len = filePath.size();
     if (len > 0) {
         if ((filePath[len-1] == '/') ||
             (filePath[len-1] == '\\')) {
-            filePath[len-1] = 0;
+            filePath.resize(len-1);
         } 
     } 
     status = getStringParam(LFBackgroundFile_, sizeof(fileName), fileName); 
     if (status) return asynError;
     len = epicsSnprintf(fullFileName, sizeof(fullFileName), "%s\\%s.spe", 
-                        filePath, fileName);
+                        filePath.c_str(), fileName);
     if (len < 0) return asynError;
-    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));    
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath.c_str()));    
     Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));
     setStringParam(LFBackgroundFullFile_, fullFileName); 
     // If this file actually exists then set the background correction file to this.
@@ -1486,12 +1499,16 @@ asynStatus LightField::writeOctet(asynUser *pasynUser, const char *value,
 
     /* Set the parameter in the parameter library. */
     setStringParam(addr, function, (char *)value);
+    
+    // If this is NDFilePath call the base class because it may need to create the directory
+    if (function == NDFilePath) {
+        status = ADDriver::writeOctet(pasynUser, value, nChars, nActual);
+    }
 
     if (currentlyAcquiring) {
         asynPrint(pasynUser, ASYN_TRACE_ERROR, 
               "%s:%s: error, attempt to change setting while acquiring, function=%d, value=%s\n", 
               driverName, functionName, function, value);
-
     } 
     
     else if ((function == NDFilePath) ||
