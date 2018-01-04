@@ -1,7 +1,7 @@
 
 file {
-	name="LightFieldFile.adl"
-	version=030107
+	name="/home/epics/devel/areaDetector-3-1/ADLightField/lightFieldApp/op/adl/LightFieldFile.adl"
+	version=030109
 }
 display {
 	object {
@@ -425,134 +425,95 @@ text {
 	}
 	textix="Example: %s_%3.3d"
 }
-composite {
+text {
 	object {
 		x=69
+		y=135
+		width=90
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="File name"
+	align="horiz. right"
+}
+"text entry" {
+	object {
+		x=168
+		y=135
+		width=500
+		height=20
+	}
+	control {
+		chan="$(P)$(R)FileName"
+		clr=14
+		bclr=51
+	}
+	format="string"
+	limits {
+	}
+}
+"text update" {
+	object {
+		x=168
+		y=112
+		width=175
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)LFFileName_RBV"
+		clr=54
+		bclr=4
+	}
+	format="string"
+	limits {
+	}
+}
+"text entry" {
+	object {
+		x=168
+		y=87
+		width=500
+		height=20
+	}
+	control {
+		chan="$(P)$(R)FilePath"
+		clr=14
+		bclr=51
+	}
+	format="string"
+	limits {
+	}
+}
+"text update" {
+	object {
+		x=168
 		y=64
-		width=599
-		height=91
+		width=385
+		height=18
 	}
-	"composite name"=""
-	children {
-		text {
-			object {
-				x=69
-				y=135
-				width=90
-				height=20
-			}
-			"basic attribute" {
-				clr=14
-			}
-			textix="File name"
-			align="horiz. right"
-		}
-		"text entry" {
-			object {
-				x=168
-				y=135
-				width=500
-				height=20
-			}
-			control {
-				chan="$(P)$(R)FileName"
-				clr=14
-				bclr=51
-			}
-			format="string"
-			limits {
-			}
-		}
-		"text update" {
-			object {
-				x=168
-				y=112
-				width=500
-				height=18
-			}
-			monitor {
-				chan="$(P)$(R)LFFileName_RBV"
-				clr=54
-				bclr=4
-			}
-			format="string"
-			limits {
-			}
-		}
-		"text entry" {
-			object {
-				x=168
-				y=87
-				width=500
-				height=20
-			}
-			control {
-				chan="$(P)$(R)FilePath"
-				clr=14
-				bclr=51
-			}
-			format="string"
-			limits {
-			}
-		}
-		"text update" {
-			object {
-				x=168
-				y=64
-				width=385
-				height=18
-			}
-			monitor {
-				chan="$(P)$(R)FilePath_RBV"
-				clr=54
-				bclr=4
-			}
-			format="string"
-			limits {
-			}
-		}
-		text {
-			object {
-				x=69
-				y=87
-				width=90
-				height=20
-			}
-			"basic attribute" {
-				clr=14
-			}
-			textix="File path"
-			align="horiz. right"
-		}
-		text {
-			object {
-				x=551
-				y=64
-				width=70
-				height=20
-			}
-			"basic attribute" {
-				clr=14
-			}
-			textix="Exists:"
-		}
-		"text update" {
-			object {
-				x=626
-				y=64
-				width=40
-				height=20
-			}
-			monitor {
-				chan="$(P)$(R)FilePathExists_RBV"
-				clr=14
-				bclr=2
-			}
-			clrmod="alarm"
-			limits {
-			}
-		}
+	monitor {
+		chan="$(P)$(R)FilePath_RBV"
+		clr=54
+		bclr=4
 	}
+	format="string"
+	limits {
+	}
+}
+text {
+	object {
+		x=69
+		y=87
+		width=90
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="File path"
+	align="horiz. right"
 }
 text {
 	object {
@@ -587,7 +548,7 @@ text {
 	object {
 		x=168
 		y=353
-		width=500
+		width=175
 		height=18
 	}
 	monitor {
@@ -670,6 +631,130 @@ text {
 		bclr=4
 	}
 	format="string"
+	limits {
+	}
+}
+composite {
+	object {
+		x=354
+		y=64
+		width=324
+		height=68
+	}
+	"composite name"=""
+	children {
+		text {
+			object {
+				x=551
+				y=64
+				width=70
+				height=20
+			}
+			"basic attribute" {
+				clr=14
+			}
+			textix="Exists:"
+		}
+		"text update" {
+			object {
+				x=626
+				y=64
+				width=40
+				height=20
+			}
+			monitor {
+				chan="$(P)$(R)FilePathExists_RBV"
+				clr=14
+				bclr=2
+			}
+			clrmod="alarm"
+			limits {
+			}
+		}
+		text {
+			object {
+				x=354
+				y=111
+				width=170
+				height=20
+			}
+			"basic attribute" {
+				clr=14
+			}
+			textix="Create dir. depth"
+			align="horiz. right"
+		}
+		"text entry" {
+			object {
+				x=529
+				y=110
+				width=40
+				height=22
+			}
+			control {
+				chan="$(P)$(R)CreateDirectory"
+				clr=14
+				bclr=51
+			}
+			limits {
+			}
+		}
+		"text update" {
+			object {
+				x=574
+				y=113
+				width=40
+				height=18
+			}
+			monitor {
+				chan="$(P)$(R)CreateDirectory_RBV"
+				clr=54
+				bclr=4
+			}
+			limits {
+			}
+		}
+		"related display" {
+			object {
+				x=619
+				y=111
+				width=59
+				height=20
+			}
+			display[0] {
+				name="createDirectoryHelp.adl"
+			}
+			clr=14
+			bclr=51
+			label="Help"
+		}
+	}
+}
+text {
+	object {
+		x=551
+		y=304
+		width=70
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Exists:"
+}
+"text update" {
+	object {
+		x=626
+		y=304
+		width=40
+		height=20
+	}
+	monitor {
+		chan="$(P)$(R)LFBackgroundPathExists_RBV"
+		clr=14
+		bclr=2
+	}
+	clrmod="alarm"
 	limits {
 	}
 }

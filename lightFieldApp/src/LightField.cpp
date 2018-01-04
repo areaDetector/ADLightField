@@ -53,12 +53,17 @@ static const char *driverName = "LightField";
 #define LFNumAcquisitionsString        "LF_NUM_ACQUISITIONS"
 #define LFGratingString                "LF_GRATING"
 #define LFGratingWavelengthString      "LF_GRATING_WAVELENGTH"
+#define LFSAGEnableString              "LF_SAG_ENABLE"
+#define LFSAGStartingWavelengthString  "LF_SAG_STARTING_WAVELENGTH"
+#define LFSAGEndingWavelengthString    "LF_SAG_ENDING_WAVELENGTH"
 #define LFEntranceSideWidthString      "LF_ENTRANCE_SIDE_WIDTH"
+#define LFEntranceSelectedString       "LF_ENTRANCE_SELECTED"
 #define LFExitSelectedString           "LF_EXIT_SELECTED"
 #define LFExperimentNameString         "LF_EXPERIMENT_NAME"
 #define LFUpdateExperimentsString      "LF_UPDATE_EXPERIMENTS"
 #define LFShutterModeString            "LF_SHUTTER_MODE"
 #define LFBackgroundPathString         "LF_BACKGROUND_PATH"
+#define LFBackgroundPathExistsString   "LF_BACKGROUND_PATH_EXISTS"
 #define LFBackgroundFileString         "LF_BACKGROUND_FILE"
 #define LFBackgroundFullFileString     "LF_BACKGROUND_FULL_FILE"
 #define LFBackgroundEnableString       "LF_BACKGROUND_ENABLE"
@@ -135,12 +140,17 @@ protected:
     int LFNumAcquisitions_;
     int LFGrating_;
     int LFGratingWavelength_;
+    int LFSAGEnable_;
+    int LFSAGStartingWavelength_;
+    int LFSAGEndingWavelength_;
     int LFEntranceSideWidth_;
+    int LFEntranceSelected_;
     int LFExitSelected_;
     int LFExperimentName_;
     int LFUpdateExperiments_;
     int LFShutterMode_;
     int LFBackgroundPath_;
+    int LFBackgroundPathExists_;
     int LFBackgroundFile_;
     int LFBackgroundFullFile_;
     int LFBackgroundEnable_;
@@ -280,12 +290,17 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFNumAcquisitionsString,         asynParamInt32,   &LFNumAcquisitions_);
     createParam(LFGratingString,                 asynParamInt32,   &LFGrating_);
     createParam(LFGratingWavelengthString,     asynParamFloat64,   &LFGratingWavelength_);
+    createParam(LFSAGEnableString,               asynParamInt32,   &LFSAGEnable_);
+    createParam(LFSAGStartingWavelengthString, asynParamFloat64,   &LFSAGStartingWavelength_);
+    createParam(LFSAGEndingWavelengthString,   asynParamFloat64,   &LFSAGEndingWavelength_);
     createParam(LFEntranceSideWidthString,       asynParamInt32,   &LFEntranceSideWidth_);
+    createParam(LFEntranceSelectedString,        asynParamInt32,   &LFEntranceSelected_);
     createParam(LFExitSelectedString,            asynParamInt32,   &LFExitSelected_);
     createParam(LFExperimentNameString,          asynParamInt32,   &LFExperimentName_);
     createParam(LFUpdateExperimentsString,       asynParamInt32,   &LFUpdateExperiments_);
     createParam(LFShutterModeString,             asynParamInt32,   &LFShutterMode_);
     createParam(LFBackgroundPathString,          asynParamOctet,   &LFBackgroundPath_);
+    createParam(LFBackgroundPathExistsString,    asynParamInt32,   &LFBackgroundPathExists_);
     createParam(LFBackgroundFileString,          asynParamOctet,   &LFBackgroundFile_);
     createParam(LFBackgroundFullFileString,      asynParamOctet,   &LFBackgroundFullFile_);
     createParam(LFBackgroundEnableString,        asynParamInt32,   &LFBackgroundEnable_);
@@ -336,6 +351,8 @@ LightField::LightField(const char *portName, const char* experimentName,
                 asynParamInt32, LFSettingInt64);
     addSetting(LFEntranceSideWidth_,SpectrometerSettings::OpticalPortEntranceSideWidth,                         
                 asynParamInt32, LFSettingInt32);
+    addSetting(LFEntranceSelected_,SpectrometerSettings::OpticalPortEntranceSelected,                         
+                asynParamInt32, LFSettingInt32);
     addSetting(LFExitSelected_,     SpectrometerSettings::OpticalPortExitSelected,                              
                 asynParamInt32, LFSettingEnum);
     addSetting(LFShutterMode_,      CameraSettings::ShutterTimingMode,                                          
@@ -347,6 +364,12 @@ LightField::LightField(const char *portName, const char* experimentName,
     addSetting(LFGrating_,          SpectrometerSettings::GratingSelected,                              
                 asynParamInt32, LFSettingString);
     addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,                              
+                asynParamFloat64, LFSettingDouble);
+    addSetting(LFSAGEnable_, ExperimentSettings::StepAndGlueEnabled,           
+                asynParamInt32, LFSettingBoolean);
+    addSetting(LFSAGStartingWavelength_, ExperimentSettings::StepAndGlueStartingWavelength,                              
+                asynParamFloat64, LFSettingDouble);
+    addSetting(LFSAGEndingWavelength_, ExperimentSettings::StepAndGlueEndingWavelength,                              
                 asynParamFloat64, LFSettingDouble);
     addSetting(LFIntensifierEnable_, CameraSettings::IntensifierEnabled,                              
                 asynParamInt32, LFSettingBoolean);
@@ -762,8 +785,7 @@ asynStatus LightField::setFilePathAndName(bool doAutoIncrement)
         "%s:%s: entry\n", driverName, functionName);
     
     status = checkPath();  // This appends trailing "/" if there is no trailing "/" or "\"
-    status |= getStringParam(NDFilePath, sizeof(filePath), filePath);
-    if (status) return asynError; 
+    getStringParam(NDFilePath, sizeof(filePath), filePath);
     // Remove trailing \ or / because LightField won't accept it
     len = strlen(filePath);
     if (len > 0) filePath[len-1] = 0;        
@@ -792,10 +814,11 @@ asynStatus LightField::setFilePathAndName(bool doAutoIncrement)
 
 asynStatus LightField::setBackgroundFile()
 {
-    char filePath[MAX_FILENAME_LEN];
+    std::string filePath;
     char fileName[MAX_FILENAME_LEN];
     char fullFileName[MAX_FILENAME_LEN];
     struct stat buff;
+    bool pathExists;
     int stat_ret;
     asynStatus status;
     size_t len;
@@ -804,22 +827,32 @@ asynStatus LightField::setBackgroundFile()
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
     
-    status = getStringParam(LFBackgroundPath_, sizeof(filePath), filePath);
-    if (status) return asynError; 
+    status = getStringParam(LFBackgroundPath_, filePath);
+    pathExists = checkPath(filePath);
+    setIntegerParam(LFBackgroundPathExists_, pathExists?1:0);
+    if (!pathExists) {
+        // The directory does not exist so try to create it
+        int pathDepth;
+        getIntegerParam(NDFileCreateDir, &pathDepth);
+        status = createFilePath(filePath.c_str(), pathDepth);
+         pathExists = checkPath(filePath);
+        setIntegerParam(LFBackgroundPathExists_, pathExists?1:0);
+        if (!pathExists) return asynError;
+    }
     // Remove trailing '\' or '/'
-    len = strlen(filePath);
+    len = filePath.size();
     if (len > 0) {
         if ((filePath[len-1] == '/') ||
             (filePath[len-1] == '\\')) {
-            filePath[len-1] = 0;
+            filePath.resize(len-1);
         } 
     } 
     status = getStringParam(LFBackgroundFile_, sizeof(fileName), fileName); 
     if (status) return asynError;
     len = epicsSnprintf(fullFileName, sizeof(fullFileName), "%s\\%s.spe", 
-                        filePath, fileName);
+                        filePath.c_str(), fileName);
     if (len < 0) return asynError;
-    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));    
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath.c_str()));    
     Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));
     setStringParam(LFBackgroundFullFile_, fullFileName); 
     // If this file actually exists then set the background correction file to this.
@@ -1302,7 +1335,9 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 (function == LFGain_) ||
                 (function == LFShutterMode_) ||
                 (function == LFEntranceSideWidth_) ||
+                (function == LFEntranceSelected_) ||
                 (function == LFExitSelected_) ||
+                (function == LFSAGEnable_) ||
                 (function == LFBackgroundEnable_) ||
                 (function == LFIntensifierEnable_) ||
                 (function == LFIntensifierGain_) ||
@@ -1400,6 +1435,8 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
     
     if (     (function == ADTemperature) ||
              (function == LFGratingWavelength_) ||
+             (function == LFSAGStartingWavelength_) ||
+             (function == LFSAGEndingWavelength_) ||
              (function == LFTriggerFrequency_) ||
              (function == LFSyncMaster2Delay_))
         status = setExperimentDouble(function, value);
@@ -1458,12 +1495,16 @@ asynStatus LightField::writeOctet(asynUser *pasynUser, const char *value,
 
     /* Set the parameter in the parameter library. */
     setStringParam(addr, function, (char *)value);
+    
+    // If this is NDFilePath call the base class because it may need to create the directory
+    if (function == NDFilePath) {
+        status = ADDriver::writeOctet(pasynUser, value, nChars, nActual);
+    }
 
     if (currentlyAcquiring) {
         asynPrint(pasynUser, ASYN_TRACE_ERROR, 
               "%s:%s: error, attempt to change setting while acquiring, function=%d, value=%s\n", 
               driverName, functionName, function, value);
-
     } 
     
     else if ((function == NDFilePath) ||
