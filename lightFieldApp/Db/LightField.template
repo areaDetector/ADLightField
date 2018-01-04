@@ -196,7 +196,7 @@ record(mbbi, "$(P)$(R)LFGrating_RBV")
 
 record(ao, "$(P)$(R)LFGratingWL")
 {
-    field(PINI, "YES")
+#    field(PINI, "YES")
     field(DTYP, "asynFloat64")
     field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_GRATING_WAVELENGTH")
     field(PREC, "3")
@@ -231,7 +231,7 @@ record(bi, "$(P)$(R)LFSAGEnable_RBV")
 
 record(ao, "$(P)$(R)LFSAGStartingWL")
 {
-    field(PINI, "YES")
+#    field(PINI, "YES")
     field(DTYP, "asynFloat64")
     field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_SAG_STARTING_WAVELENGTH")
     field(PREC, "3")
@@ -247,7 +247,7 @@ record(ai, "$(P)$(R)LFSAGStartingWL_RBV")
 
 record(ao, "$(P)$(R)LFSAGEndingWL")
 {
-    field(PINI, "YES")
+#    field(PINI, "YES")
     field(DTYP, "asynFloat64")
     field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_SAG_ENDING_WAVELENGTH")
     field(PREC, "3")
@@ -277,13 +277,13 @@ record(longin, "$(P)$(R)LFEntranceWidth_RBV")
 
 record(mbbo, "$(P)$(R)LFEntrancePort")
 {
-    field(PINI, "YES")
+#    field(PINI, "YES")
     field(DTYP, "asynInt32")
     field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_ENTRANCE_SELECTED")
     field(ZRST, "Side")
-    field(ZRVL, "5")
+    field(ZRVL, "2")
     field(ONST, "Front")
-    field(ONVL, "4")
+    field(ONVL, "3")
 }
 
 record(mbbi, "$(P)$(R)LFEntrancePort_RBV")
@@ -291,9 +291,9 @@ record(mbbi, "$(P)$(R)LFEntrancePort_RBV")
     field(DTYP, "asynInt32")
     field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_ENTRANCE_SELECTED")
     field(ZRST, "Side")
-    field(ZRVL, "5")
+    field(ZRVL, "2")
     field(ONST, "Front")
-    field(ONVL, "4")
+    field(ONVL, "3")
     field(SCAN, "I/O Intr")
 }
 
