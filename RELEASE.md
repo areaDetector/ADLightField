@@ -28,6 +28,10 @@ R2-5 (30-January-2018)
 * Added support for Step And Glue to collect spectra that require changing gratings automatically.
   There are records to enable Step And Glue and to set the starting and ending wavelength.
 * Added support for selecting the Entrance Port of the spectrometer.
+* Fixed medm adl files to improve the autoconversion to other display manager files.
+* Added op/Makefile to automatically convert adl files to edl, ui, and opi files.
+* Updated the edl, ui, and opi autoconvert directories to contain the conversions
+  from the most recent adl files.
 * Updated the DLL files to those from LightField 6.4.
 * Changed CONFIG_SITE to disable GraphicsMagick with LightField because it is incompatible for some reason.
 
