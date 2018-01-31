@@ -508,20 +508,6 @@ value {
 }
 endObjectProperties
 
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 69
-y 64
-w 599
-h 91
-
-beginGroup
-
-
 # (Static Text)
 object activeXTextClass
 beginObjectProperties
@@ -575,7 +561,7 @@ minor 0
 release 0
 x 168
 y 112
-w 500
+w 175
 h 18
 controlPv "$(P)$(R)LFFileName_RBV"
 font "helvetica-medium-r-8.0"
@@ -666,54 +652,6 @@ beginObjectProperties
 major 4
 minor 0
 release 0
-x 551
-y 64
-w 70
-h 20
-font "helvetica-medium-r-8.0"
-fgColor index 14
-useDisplayBg
-value {
- "Exists:"
-}
-endObjectProperties
-
-# (Text Control)
-object activeXTextDspClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 626
-y 64
-w 40
-h 20
-controlPv "$(P)$(R)FilePathExists_RBV"
-font "helvetica-medium-r-8.0"
-smartRefresh
-fastUpdate
-fgColor index 14
-fgAlarm
-bgColor index 2
-autoHeight
-format decimal
-nullColor index 32
-useHexPrefix
-objType "controls"
-newPos
-endObjectProperties
-
-endGroup
-
-endObjectProperties
-
-
-# (Static Text)
-object activeXTextClass
-beginObjectProperties
-major 4
-minor 0
-release 0
 x 69
 y 376
 w 90
@@ -761,7 +699,7 @@ minor 0
 release 0
 x 168
 y 353
-w 500
+w 175
 h 18
 controlPv "$(P)$(R)LFBackgroundFile_RBV"
 font "helvetica-medium-r-8.0"
@@ -883,6 +821,180 @@ fgColor index 54
 bgColor index 4
 autoHeight
 format "string"
+nullColor index 32
+useHexPrefix
+objType "controls"
+newPos
+endObjectProperties
+
+# (Group)
+object activeGroupClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 354
+y 64
+w 324
+h 68
+
+beginGroup
+
+
+# (Static Text)
+object activeXTextClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 551
+y 64
+w 70
+h 20
+font "helvetica-medium-r-8.0"
+fgColor index 14
+useDisplayBg
+value {
+ "Exists:"
+}
+endObjectProperties
+
+# (Text Control)
+object activeXTextDspClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 626
+y 64
+w 40
+h 20
+controlPv "$(P)$(R)FilePathExists_RBV"
+font "helvetica-medium-r-8.0"
+smartRefresh
+fastUpdate
+fgColor index 14
+fgAlarm
+bgColor index 2
+autoHeight
+format decimal
+nullColor index 32
+useHexPrefix
+objType "controls"
+newPos
+endObjectProperties
+
+# (Static Text)
+object activeXTextClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 354
+y 111
+w 170
+h 20
+font "helvetica-medium-r-8.0"
+fontAlign "right"
+fgColor index 14
+useDisplayBg
+value {
+ "Create dir. depth"
+}
+endObjectProperties
+
+# (Text Control)
+object activeXTextDspClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 529
+y 110
+w 40
+h 22
+controlPv "$(P)$(R)CreateDirectory"
+font "helvetica-medium-r-8.0"
+smartRefresh
+fastUpdate
+fgColor index 14
+bgColor index 51
+editable
+autoHeight
+format decimal
+motifWidget
+nullColor index 32
+useHexPrefix
+objType "controls"
+newPos
+endObjectProperties
+
+# (Text Control)
+object activeXTextDspClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 574
+y 113
+w 40
+h 18
+controlPv "$(P)$(R)CreateDirectory_RBV"
+font "helvetica-medium-r-8.0"
+smartRefresh
+fastUpdate
+fgColor index 54
+bgColor index 4
+autoHeight
+format decimal
+nullColor index 32
+useHexPrefix
+objType "controls"
+newPos
+endObjectProperties
+
+endGroup
+
+endObjectProperties
+
+
+# (Static Text)
+object activeXTextClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 551
+y 304
+w 70
+h 20
+font "helvetica-medium-r-8.0"
+fgColor index 14
+useDisplayBg
+value {
+ "Exists:"
+}
+endObjectProperties
+
+# (Text Control)
+object activeXTextDspClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 626
+y 304
+w 40
+h 20
+controlPv "$(P)$(R)LFBackgroundPathExists_RBV"
+font "helvetica-medium-r-8.0"
+smartRefresh
+fastUpdate
+fgColor index 14
+fgAlarm
+bgColor index 2
+autoHeight
+format decimal
 nullColor index 32
 useHexPrefix
 objType "controls"
@@ -1042,13 +1154,38 @@ beginObjectProperties
 major 4
 minor 0
 release 0
-x 69
+x 354
 y 64
-w 599
-h 91
+w 324
+h 68
 
 beginGroup
 
+
+# (Related Display)
+object relatedDisplayClass
+beginObjectProperties
+major 4
+minor 0
+release 0
+x 619
+y 111
+w 59
+h 20
+fgColor index 14
+bgColor index 51
+topShadowColor index 2
+botShadowColor index 12
+font "helvetica-medium-r-10.0"
+icon
+buttonLabel "Help"
+numPvs 0
+numDsps 0
+displayFileName {
+}
+menuLabel {
+}
+endObjectProperties
 
 endGroup
 
