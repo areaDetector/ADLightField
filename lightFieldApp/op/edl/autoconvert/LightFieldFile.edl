@@ -30,7 +30,7 @@ beginObjectProperties
 major 4
 minor 0
 release 0
-x 2
+x 5
 y 34
 w 680
 h 400
@@ -73,20 +73,6 @@ value {
  "File"
 }
 endObjectProperties
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 49
-y 160
-w 264
-h 22
-
-beginGroup
-
 
 # (Static Text)
 object activeXTextClass
@@ -157,34 +143,15 @@ objType "controls"
 newPos
 endObjectProperties
 
-endGroup
-
-endObjectProperties
-
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 59
-y 275
-w 316
-h 20
-
-beginGroup
-
-
 # (Static Text)
 object activeXTextClass
 beginObjectProperties
 major 4
 minor 0
 release 0
-x 59
+x 39
 y 275
-w 100
+w 120
 h 20
 font "helvetica-medium-r-8.0"
 fontAlign "right"
@@ -219,34 +186,15 @@ objType "controls"
 newPos
 endObjectProperties
 
-endGroup
-
-endObjectProperties
-
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 95
-y 4
-w 500
-h 26
-
-beginGroup
-
-
 # (Rectangle)
 object activeRectangleClass
 beginObjectProperties
 major 4
 minor 0
 release 0
-x 95
+x 0
 y 4
-w 499
+w 689
 h 24
 lineColor index 2
 fill
@@ -260,37 +208,18 @@ beginObjectProperties
 major 4
 minor 0
 release 0
-x 153
+x 0
 y 5
-w 384
+w 690
 h 25
 font "helvetica-medium-r-8.0"
 fontAlign "center"
 fgColor index 54
 useDisplayBg
 value {
- "Area Detector Control - $(P)$(R)"
+ "LightField File - $(P)$(R)"
 }
 endObjectProperties
-
-endGroup
-
-endObjectProperties
-
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 343
-y 160
-w 298
-h 20
-
-beginGroup
-
 
 # (Static Text)
 object activeXTextClass
@@ -328,17 +257,12 @@ fastUpdate
 fgColor index 54
 bgColor index 4
 autoHeight
-format decimal
+format "string"
 nullColor index 32
 useHexPrefix
 objType "controls"
 newPos
 endObjectProperties
-
-endGroup
-
-endObjectProperties
-
 
 # (Static Text)
 object activeXTextClass
@@ -358,20 +282,6 @@ value {
  "Filename format"
 }
 endObjectProperties
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 168
-y 190
-w 160
-h 43
-
-beginGroup
-
 
 # (Text Control)
 object activeXTextDspClass
@@ -423,25 +333,6 @@ objType "controls"
 newPos
 endObjectProperties
 
-endGroup
-
-endObjectProperties
-
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 29
-y 238
-w 639
-h 20
-
-beginGroup
-
-
 # (Static Text)
 object activeXTextClass
 beginObjectProperties
@@ -485,11 +376,6 @@ objType "controls"
 newPos
 endObjectProperties
 
-endGroup
-
-endObjectProperties
-
-
 # (Static Text)
 object activeXTextClass
 beginObjectProperties
@@ -498,7 +384,7 @@ minor 0
 release 0
 x 352
 y 213
-w 230
+w 170
 h 20
 font "helvetica-medium-r-8.0"
 fgColor index 14
@@ -611,7 +497,7 @@ minor 0
 release 0
 x 168
 y 64
-w 385
+w 375
 h 18
 controlPv "$(P)$(R)FilePath_RBV"
 font "helvetica-medium-r-8.0"
@@ -652,9 +538,9 @@ beginObjectProperties
 major 4
 minor 0
 release 0
-x 69
+x 9
 y 376
-w 90
+w 150
 h 20
 font "helvetica-medium-r-8.0"
 fontAlign "right"
@@ -699,7 +585,7 @@ minor 0
 release 0
 x 168
 y 353
-w 175
+w 375
 h 18
 controlPv "$(P)$(R)LFBackgroundFile_RBV"
 font "helvetica-medium-r-8.0"
@@ -749,7 +635,7 @@ minor 0
 release 0
 x 168
 y 305
-w 385
+w 375
 h 18
 controlPv "$(P)$(R)LFBackgroundPath_RBV"
 font "helvetica-medium-r-8.0"
@@ -771,9 +657,9 @@ beginObjectProperties
 major 4
 minor 0
 release 0
-x 69
+x 9
 y 328
-w 90
+w 150
 h 20
 font "helvetica-medium-r-8.0"
 fontAlign "right"
@@ -790,9 +676,9 @@ beginObjectProperties
 major 4
 minor 0
 release 0
-x 26
+x 6
 y 405
-w 130
+w 150
 h 20
 font "helvetica-medium-r-8.0"
 fontAlign "right"
@@ -811,7 +697,7 @@ minor 0
 release 0
 x 165
 y 408
-w 750
+w 500
 h 15
 controlPv "$(P)$(R)LFBackgroundFullFile_RBV"
 font "helvetica-medium-r-8.0"
@@ -826,20 +712,6 @@ useHexPrefix
 objType "controls"
 newPos
 endObjectProperties
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 354
-y 64
-w 324
-h 68
-
-beginGroup
-
 
 # (Static Text)
 object activeXTextClass
@@ -877,7 +749,7 @@ fgColor index 14
 fgAlarm
 bgColor index 2
 autoHeight
-format decimal
+format "string"
 nullColor index 32
 useHexPrefix
 objType "controls"
@@ -953,11 +825,6 @@ objType "controls"
 newPos
 endObjectProperties
 
-endGroup
-
-endObjectProperties
-
-
 # (Static Text)
 object activeXTextClass
 beginObjectProperties
@@ -994,43 +861,12 @@ fgColor index 14
 fgAlarm
 bgColor index 2
 autoHeight
-format decimal
+format "string"
 nullColor index 32
 useHexPrefix
 objType "controls"
 newPos
 endObjectProperties
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 49
-y 160
-w 264
-h 22
-
-beginGroup
-
-
-endGroup
-
-endObjectProperties
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 59
-y 275
-w 316
-h 20
-
-beginGroup
-
 
 # (Menu Button)
 object activeMenuButtonClass
@@ -1052,42 +888,6 @@ indicatorPv "$(P)$(R)LFBackgroundEnable"
 font "helvetica-medium-r-10.0"
 endObjectProperties
 
-endGroup
-
-endObjectProperties
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 95
-y 4
-w 500
-h 26
-
-beginGroup
-
-
-endGroup
-
-endObjectProperties
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 343
-y 160
-w 298
-h 20
-
-beginGroup
-
-
 # (Menu Button)
 object activeMenuButtonClass
 beginObjectProperties
@@ -1107,60 +907,6 @@ controlPv "$(P)$(R)AutoIncrement"
 indicatorPv "$(P)$(R)AutoIncrement"
 font "helvetica-medium-r-10.0"
 endObjectProperties
-
-endGroup
-
-endObjectProperties
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 168
-y 190
-w 160
-h 43
-
-beginGroup
-
-
-endGroup
-
-endObjectProperties
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 29
-y 238
-w 639
-h 20
-
-beginGroup
-
-
-endGroup
-
-endObjectProperties
-
-# (Group)
-object activeGroupClass
-beginObjectProperties
-major 4
-minor 0
-release 0
-x 354
-y 64
-w 324
-h 68
-
-beginGroup
-
 
 # (Related Display)
 object relatedDisplayClass
@@ -1186,9 +932,4 @@ displayFileName {
 menuLabel {
 }
 endObjectProperties
-
-endGroup
-
-endObjectProperties
-
 

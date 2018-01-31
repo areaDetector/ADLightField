@@ -1,6 +1,6 @@
 
 file {
-	name="/home/epics/devel/areaDetector-3-1/ADLightField/lightFieldApp/op/adl/LightFieldFile.adl"
+	name="/home/epics/devel/areaDetector-3-2/ADLightField/lightFieldApp/op/adl/LightFieldFile.adl"
 	version=030109
 }
 display {
@@ -89,7 +89,7 @@ display {
 }
 rectangle {
 	object {
-		x=2
+		x=5
 		y=34
 		width=680
 		height=400
@@ -123,198 +123,155 @@ text {
 	textix="File"
 	align="horiz. centered"
 }
-composite {
+text {
 	object {
 		x=49
-		y=160
-		width=264
-		height=22
-	}
-	"composite name"=""
-	children {
-		text {
-			object {
-				x=49
-				y=161
-				width=110
-				height=20
-			}
-			"basic attribute" {
-				clr=14
-			}
-			textix="Next file #"
-			align="horiz. right"
-		}
-		"text entry" {
-			object {
-				x=168
-				y=160
-				width=60
-				height=22
-			}
-			control {
-				chan="$(P)$(R)FileNumber"
-				clr=14
-				bclr=51
-			}
-			limits {
-			}
-		}
-		"text update" {
-			object {
-				x=233
-				y=162
-				width=80
-				height=18
-			}
-			monitor {
-				chan="$(P)$(R)FileNumber_RBV"
-				clr=54
-				bclr=4
-			}
-			limits {
-			}
-		}
-	}
-}
-composite {
-	object {
-		x=59
-		y=275
-		width=316
+		y=161
+		width=110
 		height=20
 	}
-	"composite name"=""
-	children {
-		text {
-			object {
-				x=59
-				y=275
-				width=100
-				height=20
-			}
-			"basic attribute" {
-				clr=14
-			}
-			textix="Enable bkdg."
-			align="horiz. right"
-		}
-		menu {
-			object {
-				x=169
-				y=275
-				width=120
-				height=20
-			}
-			control {
-				chan="$(P)$(R)LFBackgroundEnable"
-				clr=14
-				bclr=51
-			}
-		}
-		"text update" {
-			object {
-				x=296
-				y=277
-				width=79
-				height=18
-			}
-			monitor {
-				chan="$(P)$(R)LFBackgroundEnable_RBV"
-				clr=54
-				bclr=4
-			}
-			format="string"
-			limits {
-			}
-		}
+	"basic attribute" {
+		clr=14
 	}
+	textix="Next file #"
+	align="horiz. right"
 }
-composite {
+"text entry" {
 	object {
-		x=95
-		y=4
-		width=500
-		height=26
+		x=168
+		y=160
+		width=60
+		height=22
 	}
-	"composite name"=""
-	children {
-		rectangle {
-			object {
-				x=95
-				y=4
-				width=500
-				height=25
-			}
-			"basic attribute" {
-				clr=2
-			}
-		}
-		text {
-			object {
-				x=153
-				y=5
-				width=384
-				height=25
-			}
-			"basic attribute" {
-				clr=54
-			}
-			textix="Area Detector Control - $(P)$(R)"
-			align="horiz. centered"
-		}
+	control {
+		chan="$(P)$(R)FileNumber"
+		clr=14
+		bclr=51
+	}
+	limits {
 	}
 }
-composite {
+"text update" {
+	object {
+		x=233
+		y=162
+		width=80
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)FileNumber_RBV"
+		clr=54
+		bclr=4
+	}
+	limits {
+	}
+}
+text {
+	object {
+		x=39
+		y=275
+		width=120
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Enable bkdg."
+	align="horiz. right"
+}
+menu {
+	object {
+		x=169
+		y=275
+		width=120
+		height=20
+	}
+	control {
+		chan="$(P)$(R)LFBackgroundEnable"
+		clr=14
+		bclr=51
+	}
+}
+"text update" {
+	object {
+		x=296
+		y=277
+		width=79
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)LFBackgroundEnable_RBV"
+		clr=54
+		bclr=4
+	}
+	format="string"
+	limits {
+	}
+}
+rectangle {
+	object {
+		x=0
+		y=4
+		width=690
+		height=25
+	}
+	"basic attribute" {
+		clr=2
+	}
+}
+text {
+	object {
+		x=0
+		y=5
+		width=690
+		height=25
+	}
+	"basic attribute" {
+		clr=54
+	}
+	textix="LightField File - $(P)$(R)"
+	align="horiz. centered"
+}
+text {
 	object {
 		x=343
 		y=160
-		width=298
+		width=140
 		height=20
 	}
-	"composite name"=""
-	children {
-		text {
-			object {
-				x=343
-				y=160
-				width=140
-				height=20
-			}
-			"basic attribute" {
-				clr=14
-			}
-			textix="Auto increment"
-			align="horiz. right"
-		}
-		menu {
-			object {
-				x=492
-				y=160
-				width=64
-				height=20
-			}
-			control {
-				chan="$(P)$(R)AutoIncrement"
-				clr=14
-				bclr=51
-			}
-		}
-		"text update" {
-			object {
-				x=561
-				y=161
-				width=80
-				height=18
-			}
-			monitor {
-				chan="$(P)$(R)AutoIncrement_RBV"
-				clr=54
-				bclr=4
-			}
-			limits {
-			}
-		}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Auto increment"
+	align="horiz. right"
+}
+menu {
+	object {
+		x=492
+		y=160
+		width=64
+		height=20
+	}
+	control {
+		chan="$(P)$(R)AutoIncrement"
+		clr=14
+		bclr=51
+	}
+}
+"text update" {
+	object {
+		x=561
+		y=161
+		width=80
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)AutoIncrement_RBV"
+		clr=54
+		bclr=4
+	}
+	format="string"
+	limits {
 	}
 }
 text {
@@ -330,94 +287,72 @@ text {
 	textix="Filename format"
 	align="horiz. right"
 }
-composite {
+"text update" {
 	object {
 		x=168
 		y=190
 		width=160
-		height=43
+		height=18
 	}
-	"composite name"=""
-	children {
-		"text update" {
-			object {
-				x=168
-				y=190
-				width=160
-				height=18
-			}
-			monitor {
-				chan="$(P)$(R)FileTemplate_RBV"
-				clr=54
-				bclr=4
-			}
-			format="string"
-			limits {
-			}
-		}
-		"text entry" {
-			object {
-				x=168
-				y=213
-				width=160
-				height=20
-			}
-			control {
-				chan="$(P)$(R)FileTemplate"
-				clr=14
-				bclr=51
-			}
-			format="string"
-			limits {
-			}
-		}
+	monitor {
+		chan="$(P)$(R)FileTemplate_RBV"
+		clr=54
+		bclr=4
+	}
+	format="string"
+	limits {
 	}
 }
-composite {
+"text entry" {
+	object {
+		x=168
+		y=213
+		width=160
+		height=20
+	}
+	control {
+		chan="$(P)$(R)FileTemplate"
+		clr=14
+		bclr=51
+	}
+	format="string"
+	limits {
+	}
+}
+text {
 	object {
 		x=29
 		y=238
-		width=639
+		width=130
 		height=20
 	}
-	"composite name"=""
-	children {
-		text {
-			object {
-				x=29
-				y=238
-				width=130
-				height=20
-			}
-			"basic attribute" {
-				clr=14
-			}
-			textix="Last filename"
-			align="horiz. right"
-		}
-		"text update" {
-			object {
-				x=168
-				y=239
-				width=500
-				height=18
-			}
-			monitor {
-				chan="$(P)$(R)FullFileName_RBV"
-				clr=54
-				bclr=4
-			}
-			format="string"
-			limits {
-			}
-		}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Last filename"
+	align="horiz. right"
+}
+"text update" {
+	object {
+		x=168
+		y=239
+		width=500
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)FullFileName_RBV"
+		clr=54
+		bclr=4
+	}
+	format="string"
+	limits {
 	}
 }
 text {
 	object {
 		x=352
 		y=213
-		width=230
+		width=170
 		height=20
 	}
 	"basic attribute" {
@@ -490,7 +425,7 @@ text {
 	object {
 		x=168
 		y=64
-		width=385
+		width=375
 		height=18
 	}
 	monitor {
@@ -517,9 +452,9 @@ text {
 }
 text {
 	object {
-		x=69
+		x=9
 		y=376
-		width=90
+		width=150
 		height=20
 	}
 	"basic attribute" {
@@ -548,7 +483,7 @@ text {
 	object {
 		x=168
 		y=353
-		width=175
+		width=375
 		height=18
 	}
 	monitor {
@@ -580,7 +515,7 @@ text {
 	object {
 		x=168
 		y=305
-		width=385
+		width=375
 		height=18
 	}
 	monitor {
@@ -594,9 +529,9 @@ text {
 }
 text {
 	object {
-		x=69
+		x=9
 		y=328
-		width=90
+		width=150
 		height=20
 	}
 	"basic attribute" {
@@ -607,9 +542,9 @@ text {
 }
 text {
 	object {
-		x=26
+		x=6
 		y=405
-		width=130
+		width=150
 		height=20
 	}
 	"basic attribute" {
@@ -622,7 +557,7 @@ text {
 	object {
 		x=165
 		y=408
-		width=750
+		width=500
 		height=15
 	}
 	monitor {
@@ -634,101 +569,91 @@ text {
 	limits {
 	}
 }
-composite {
+text {
+	object {
+		x=551
+		y=64
+		width=70
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Exists:"
+}
+"text update" {
+	object {
+		x=626
+		y=64
+		width=40
+		height=20
+	}
+	monitor {
+		chan="$(P)$(R)FilePathExists_RBV"
+		clr=14
+		bclr=2
+	}
+	clrmod="alarm"
+	format="string"
+	limits {
+	}
+}
+text {
 	object {
 		x=354
-		y=64
-		width=324
-		height=68
+		y=111
+		width=170
+		height=20
 	}
-	"composite name"=""
-	children {
-		text {
-			object {
-				x=551
-				y=64
-				width=70
-				height=20
-			}
-			"basic attribute" {
-				clr=14
-			}
-			textix="Exists:"
-		}
-		"text update" {
-			object {
-				x=626
-				y=64
-				width=40
-				height=20
-			}
-			monitor {
-				chan="$(P)$(R)FilePathExists_RBV"
-				clr=14
-				bclr=2
-			}
-			clrmod="alarm"
-			limits {
-			}
-		}
-		text {
-			object {
-				x=354
-				y=111
-				width=170
-				height=20
-			}
-			"basic attribute" {
-				clr=14
-			}
-			textix="Create dir. depth"
-			align="horiz. right"
-		}
-		"text entry" {
-			object {
-				x=529
-				y=110
-				width=40
-				height=22
-			}
-			control {
-				chan="$(P)$(R)CreateDirectory"
-				clr=14
-				bclr=51
-			}
-			limits {
-			}
-		}
-		"text update" {
-			object {
-				x=574
-				y=113
-				width=40
-				height=18
-			}
-			monitor {
-				chan="$(P)$(R)CreateDirectory_RBV"
-				clr=54
-				bclr=4
-			}
-			limits {
-			}
-		}
-		"related display" {
-			object {
-				x=619
-				y=111
-				width=59
-				height=20
-			}
-			display[0] {
-				name="createDirectoryHelp.adl"
-			}
-			clr=14
-			bclr=51
-			label="Help"
-		}
+	"basic attribute" {
+		clr=14
 	}
+	textix="Create dir. depth"
+	align="horiz. right"
+}
+"text entry" {
+	object {
+		x=529
+		y=110
+		width=40
+		height=22
+	}
+	control {
+		chan="$(P)$(R)CreateDirectory"
+		clr=14
+		bclr=51
+	}
+	limits {
+	}
+}
+"text update" {
+	object {
+		x=574
+		y=113
+		width=40
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)CreateDirectory_RBV"
+		clr=54
+		bclr=4
+	}
+	limits {
+	}
+}
+"related display" {
+	object {
+		x=619
+		y=111
+		width=59
+		height=20
+	}
+	display[0] {
+		name="createDirectoryHelp.adl"
+	}
+	clr=14
+	bclr=51
+	label="Help"
 }
 text {
 	object {
@@ -755,6 +680,7 @@ text {
 		bclr=2
 	}
 	clrmod="alarm"
+	format="string"
 	limits {
 	}
 }
