@@ -358,11 +358,65 @@
         <td>
           LF_GRATING_WAVELENGTH </td>
         <td>
-          $(P)$(R)LFGratingWavelength<br />
-          $(P)$(R)LFGratingWavelength_RBV </td>
+          $(P)$(R)LFGratingWL<br />
+          $(P)$(R)LFGratingWL_RBV </td>
         <td>
           ao<br />
           ai </td>
+      </tr>
+      <tr>
+        <td>
+          LFSAGStartingWavelength </td>
+        <td>
+          asynFloat64 </td>
+        <td>
+          r/w </td>
+        <td>
+          Selects the starting wavelength of the spectrometer for Step And Glue. </td>
+        <td>
+          LF_SAG_STARTING_WAVELENGTH </td>
+        <td>
+          $(P)$(R)LFSAGStartingWL<br />
+          $(P)$(R)LFSAGStartingWL_RBV </td>
+        <td>
+          ao<br />
+          ai </td>
+      </tr>
+      <tr>
+        <td>
+          LFSAGEndingWavelength </td>
+        <td>
+          asynFloat64 </td>
+        <td>
+          r/w </td>
+        <td>
+          Selects the ending wavelength of the spectrometer for Step And Glue. </td>
+        <td>
+          LF_SAG_ENDING_WAVELENGTH </td>
+        <td>
+          $(P)$(R)LFSAGEndingWL<br />
+          $(P)$(R)LFSAGEndingWL_RBV </td>
+        <td>
+          ao<br />
+          ai </td>
+      </tr>
+      <tr>
+        <td>
+          LFSAGEnable </td>
+        <td>
+          asynInt32 </td>
+        <td>
+          r/w </td>
+        <td>
+          Enables and disables Step and Glue. </td>
+        <td>
+          LF_SAG_ENABLE </td>
+        <td>
+          $(P)$(R)LFSAGEnable<br />
+          $(P)$(R)LFSAGEnable_RBV </td>
+        <td>
+          bo<br />
+          bi </td>
       </tr>
       <tr>
         <td>
@@ -384,6 +438,30 @@
       </tr>
       <tr>
         <td>
+          LFEntrancePort </td>
+        <td>
+          asynInt32 </td>
+        <td>
+          r/w </td>
+        <td>
+          Selects the entrance port of the spectrometer. Choices are:
+          <br />
+          <ul>
+            <li>Side</li>
+            <li>Front</li>
+          </ul>
+        </td>
+        <td>
+          LF_ENTRANCE_SELECTED </td>
+        <td>
+          $(P)$(R)LFEntrancePort<br />
+          $(P)$(R)LFEntrancePort_RBV </td>
+        <td>
+          mbbo<br />
+          mbbi </td>
+      </tr>
+      <tr>
+        <td>
           LFExitPort </td>
         <td>
           asynInt32 </td>
@@ -398,7 +476,7 @@
           </ul>
         </td>
         <td>
-          LF_EXIT_PORT </td>
+          LF_EXIT_SELECTED </td>
         <td>
           $(P)$(R)LFExitPort<br />
           $(P)$(R)LFExitPort_RBV </td>
@@ -462,6 +540,24 @@
           waveform
           <br />
           waveform </td>
+      </tr>
+      <tr>
+        <td>
+          LFBackgroundPathExists </td>
+        <td>
+          asynInt32 </td>
+        <td>
+          r/o </td>
+        <td>
+          Flag to indicate if the file path to use for saving background data exists. If it
+          does not exist it will be created if the $(P)$(R)CreateDirectory PV is set appropriately.
+        </td>
+        <td>
+          LF_BACKGROUND_PATH_EXISTS </td>
+        <td>
+          $(P)$(R)LFBackgroundPathExists_RBV </td>
+        <td>
+          bi </td>
       </tr>
       <tr>
         <td>
