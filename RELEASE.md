@@ -19,6 +19,19 @@ files respectively, in the configure/ directory of the appropriate release of th
 Release Notes
 =============
 
+R2-5 (30-January-2018)
+---
+* Added support for creating the directories for data and background files.
+* LightField.template
+  - Change LFGratingWavelength records to LFGratingWL because names were too long for links.
+  - Disable PINI for LFGratingWL because it will crash LightField if Step and Glue is enabled.
+* Added support for Step And Glue to collect spectra that require changing gratings automatically.
+  There are records to enable Step And Glue and to set the starting and ending wavelength.
+* Added support for selecting the Entrance Port of the spectrometer.
+* Updated the DLL files to those from LightField 6.4.
+* Changed CONFIG_SITE to disable GraphicsMagick with LightField because it is incompatible for some reason.
+
+
 R2-4 (04-July-2017)
 ----
 * Changed layout of medm screen for ADCore R3-0.
