@@ -19,6 +19,15 @@ files respectively, in the configure/ directory of the appropriate release of th
 Release Notes
 =============
 
+R2-6 (2-July-2018)
+---
+* Added support for new PVs in ADCore R3-3 in opi files (NumQueuedArrays, EmptyFreeList, etc.)
+* Added ADBuffers.adl to main medm screen.
+* Changed configure/RELEASE files for compatibility with areaDetector R3-3.
+* Improved op/*/autoconvert/* files with better medm files and better converters.
+* Set Set ADSDKVersion and NDDriverVersion parameters in constructor.
+
+
 R2-5 (30-January-2018)
 ---
 * Added support for creating the directories for data and background files.
