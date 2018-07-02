@@ -32,6 +32,9 @@
 
 #include <epicsExport.h>
 
+#define DRIVER_VERSION      "2.6.0"
+#define LIGHTFIELD_VERSION  "6.4.1"
+
 #define LF_POLL_TIME 1.0
 #define MAX_ENUM_STATES 16
 
@@ -323,6 +326,9 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFReadyToRunString,              asynParamInt32,   &LFReadyToRun_);
     createParam(LFFilePathString,                asynParamOctet,   &LFFilePath_);
     createParam(LFFileNameString,                asynParamOctet,   &LFFileName_);
+
+    setStringParam(ADSDKVersion, LIGHTFIELD_VERSION);
+    setStringParam(NDDriverVersion, DRIVER_VERSION);
 
     ellInit(&settingList_);
     addSetting(ADMaxSizeX,          CameraSettings::SensorInformationActiveAreaWidth,                           
