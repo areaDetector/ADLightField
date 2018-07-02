@@ -1,14 +1,14 @@
 
 file {
-	name="/home/epics/devel/areaDetector-3-2/ADLightField/lightFieldApp/op/adl/LightField.adl"
+	name="/home/epics/devel/areaDetector-3-3-1/ADLightField/lightFieldApp/op/adl/LightField.adl"
 	version=030109
 }
 display {
 	object {
-		x=59
-		y=72
+		x=508
+		y=45
 		width=1070
-		height=880
+		height=950
 	}
 	clr=14
 	bclr=4
@@ -108,7 +108,7 @@ text {
 	"basic attribute" {
 		clr=54
 	}
-	textix="Area Detector Control - $(P)$(R)"
+	textix="LightField Detector - $(P)$(R)"
 	align="horiz. centered"
 }
 composite {
@@ -133,8 +133,8 @@ composite {
 }
 composite {
 	object {
-		x=360
-		y=766
+		x=715
+		y=800
 		width=350
 		height=110
 	}
@@ -1746,7 +1746,7 @@ rectangle {
 		x=360
 		y=230
 		width=350
-		height=475
+		height=550
 	}
 	"basic attribute" {
 		clr=14
@@ -1933,7 +1933,7 @@ text {
 }
 text {
 	object {
-		x=364
+		x=365
 		y=509
 		width=120
 		height=20
@@ -2269,236 +2269,6 @@ text {
 		bclr=4
 	}
 	limits {
-	}
-}
-text {
-	object {
-		x=423
-		y=655
-		width=100
-		height=20
-	}
-	"basic attribute" {
-		clr=14
-	}
-	textix="Image Rate"
-	align="horiz. right"
-}
-"text update" {
-	object {
-		x=530
-		y=656
-		width=100
-		height=18
-	}
-	monitor {
-		chan="$(P)$(R)ArrayRate_RBV"
-		clr=54
-		bclr=4
-	}
-	limits {
-	}
-}
-text {
-	object {
-		x=373
-		y=680
-		width=150
-		height=20
-	}
-	"basic attribute" {
-		clr=14
-	}
-	textix="Array Callbacks"
-	align="horiz. right"
-}
-menu {
-	object {
-		x=530
-		y=680
-		width=90
-		height=20
-	}
-	control {
-		chan="$(P)$(R)ArrayCallbacks"
-		clr=14
-		bclr=51
-	}
-}
-"text update" {
-	object {
-		x=625
-		y=682
-		width=79
-		height=18
-	}
-	monitor {
-		chan="$(P)$(R)ArrayCallbacks_RBV"
-		clr=54
-		bclr=4
-	}
-	align="horiz. centered"
-	format="string"
-	limits {
-	}
-}
-"text entry" {
-	object {
-		x=530
-		y=630
-		width=60
-		height=20
-	}
-	control {
-		chan="$(P)$(R)ArrayCounter"
-		clr=14
-		bclr=51
-	}
-	limits {
-	}
-}
-text {
-	object {
-		x=395
-		y=630
-		width=130
-		height=20
-	}
-	"basic attribute" {
-		clr=14
-	}
-	textix="Image counter"
-	align="horiz. right"
-}
-"text update" {
-	object {
-		x=595
-		y=631
-		width=80
-		height=18
-	}
-	monitor {
-		chan="$(P)$(R)ArrayCounter_RBV"
-		clr=54
-		bclr=4
-	}
-	limits {
-	}
-}
-text {
-	object {
-		x=383
-		y=580
-		width=140
-		height=20
-	}
-	"basic attribute" {
-		clr=14
-	}
-	textix="Detector State"
-	align="horiz. right"
-}
-"text update" {
-	object {
-		x=530
-		y=580
-		width=158
-		height=18
-	}
-	monitor {
-		chan="$(P)$(R)DetectorState_RBV"
-		clr=54
-		bclr=2
-	}
-	clrmod="alarm"
-	format="string"
-	limits {
-	}
-}
-text {
-	object {
-		x=403
-		y=605
-		width=120
-		height=20
-	}
-	"basic attribute" {
-		clr=14
-	}
-	textix="Ready to Run"
-	align="horiz. right"
-}
-"text update" {
-	object {
-		x=530
-		y=605
-		width=158
-		height=18
-	}
-	monitor {
-		chan="$(P)$(R)LFReadyToRun"
-		clr=54
-		bclr=2
-	}
-	clrmod="alarm"
-	format="string"
-	limits {
-	}
-}
-"related display" {
-	object {
-		x=443
-		y=737
-		width=180
-		height=20
-	}
-	display[0] {
-		label="File"
-		name="LightFieldFile.adl"
-		args="P=$(P),R=$(R)"
-	}
-	clr=14
-	bclr=51
-	label="-File and Background"
-}
-text {
-	object {
-		x=365
-		y=714
-		width=50
-		height=20
-	}
-	"basic attribute" {
-		clr=14
-	}
-	textix="File:"
-}
-"text update" {
-	object {
-		x=420
-		y=721
-		width=285
-		height=12
-	}
-	monitor {
-		chan="$(P)$(R)FullFileName_RBV"
-		clr=54
-		bclr=4
-	}
-	format="string"
-	limits {
-	}
-}
-rectangle {
-	object {
-		x=360
-		y=710
-		width=350
-		height=51
-	}
-	"basic attribute" {
-		clr=14
-		fill="outline"
 	}
 }
 text {
@@ -2948,4 +2718,329 @@ text {
 	}
 	label="Update"
 	press_msg="1"
+}
+composite {
+	object {
+		x=360
+		y=785
+		width=350
+		height=160
+	}
+	"composite name"=""
+	"composite file"="ADBuffers.adl"
+}
+"related display" {
+	object {
+		x=88
+		y=907
+		width=180
+		height=20
+	}
+	display[0] {
+		label="File"
+		name="LightFieldFile.adl"
+		args="P=$(P),R=$(R)"
+	}
+	clr=14
+	bclr=51
+	label="-File and Background"
+}
+text {
+	object {
+		x=10
+		y=884
+		width=50
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="File:"
+}
+"text update" {
+	object {
+		x=65
+		y=891
+		width=285
+		height=12
+	}
+	monitor {
+		chan="$(P)$(R)FullFileName_RBV"
+		clr=54
+		bclr=4
+	}
+	format="string"
+	limits {
+	}
+}
+rectangle {
+	object {
+		x=5
+		y=880
+		width=350
+		height=51
+	}
+	"basic attribute" {
+		clr=14
+		fill="outline"
+	}
+}
+text {
+	object {
+		x=423
+		y=730
+		width=100
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Image Rate"
+	align="horiz. right"
+}
+"text update" {
+	object {
+		x=530
+		y=731
+		width=100
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)ArrayRate_RBV"
+		clr=54
+		bclr=4
+	}
+	limits {
+	}
+}
+text {
+	object {
+		x=373
+		y=755
+		width=150
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Array Callbacks"
+	align="horiz. right"
+}
+menu {
+	object {
+		x=530
+		y=755
+		width=90
+		height=20
+	}
+	control {
+		chan="$(P)$(R)ArrayCallbacks"
+		clr=14
+		bclr=51
+	}
+}
+"text update" {
+	object {
+		x=625
+		y=757
+		width=79
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)ArrayCallbacks_RBV"
+		clr=54
+		bclr=4
+	}
+	align="horiz. centered"
+	format="string"
+	limits {
+	}
+}
+"text entry" {
+	object {
+		x=530
+		y=705
+		width=60
+		height=20
+	}
+	control {
+		chan="$(P)$(R)ArrayCounter"
+		clr=14
+		bclr=51
+	}
+	limits {
+	}
+}
+text {
+	object {
+		x=395
+		y=705
+		width=130
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Image counter"
+	align="horiz. right"
+}
+"text update" {
+	object {
+		x=595
+		y=706
+		width=80
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)ArrayCounter_RBV"
+		clr=54
+		bclr=4
+	}
+	limits {
+	}
+}
+text {
+	object {
+		x=383
+		y=655
+		width=140
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Detector State"
+	align="horiz. right"
+}
+"text update" {
+	object {
+		x=530
+		y=655
+		width=158
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)DetectorState_RBV"
+		clr=54
+		bclr=2
+	}
+	clrmod="alarm"
+	format="string"
+	limits {
+	}
+}
+text {
+	object {
+		x=403
+		y=680
+		width=120
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Ready to Run"
+	align="horiz. right"
+}
+"text update" {
+	object {
+		x=530
+		y=680
+		width=158
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)LFReadyToRun"
+		clr=54
+		bclr=2
+	}
+	clrmod="alarm"
+	format="string"
+	limits {
+	}
+}
+text {
+	object {
+		x=375
+		y=580
+		width=150
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="# Queued arrays"
+	align="horiz. right"
+}
+"text update" {
+	object {
+		x=530
+		y=581
+		width=60
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)NumQueuedArrays"
+		clr=54
+		bclr=4
+	}
+	align="horiz. right"
+	limits {
+	}
+}
+text {
+	object {
+		x=365
+		y=605
+		width=160
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Wait for plugins"
+	align="horiz. right"
+}
+menu {
+	object {
+		x=530
+		y=605
+		width=80
+		height=20
+	}
+	control {
+		chan="$(P)$(R)WaitForPlugins"
+		clr=14
+		bclr=51
+	}
+}
+text {
+	object {
+		x=405
+		y=630
+		width=120
+		height=20
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Acquire busy"
+	align="horiz. right"
+}
+"text update" {
+	object {
+		x=530
+		y=631
+		width=160
+		height=18
+	}
+	monitor {
+		chan="$(P)$(R)AcquireBusy"
+		clr=54
+		bclr=2
+	}
+	clrmod="alarm"
+	format="string"
+	limits {
+	}
 }
