@@ -80,8 +80,8 @@ From the innermost to outermost loop these are as follows:
     - EPICS record name
     - Description
   * - ADImageMode
-    - ``$(P)$(R)ImageMode``
-    - The driver redefines the choices for the ADImageMode parameter (record ``$(P)$(R)ImageMode``)
+    - $(P)$(R)ImageMode
+    - The driver redefines the choices for the ADImageMode parameter (record $(P)$(R)ImageMode)
       from ADDriver.h. The choices for the LightField are:
       
       Normal
@@ -96,14 +96,14 @@ From the innermost to outermost loop these are as follows:
         This will cause the driver to acquire a background image to be used
         when background subtraction is enabled.
   * - ADNumExposures
-    - ``$(P)$(R)NumExposures``
+    - $(P)$(R)NumExposures
     - Controls the number of exposures that LightField will sum into a single image.
   * - ADNumImages
-    - ``$(P)$(R)NumImages``
+    - $(P)$(R)NumImages
     - Controls the number of images to acquire into a single 3-D data set.
   * - ADGain
-    - ``$(P)$(R)Gain``
-    - The precision of the ``$(P)$(R)Gain`` record is changed to 0 because the gain in LightField
+    - $(P)$(R)Gain
+    - The precision of the $(P)$(R)Gain record is changed to 0 because the gain in LightField
       is an integer. Allowed values are detector dependent, but 1 and 2 are typically
       supported.
 
@@ -118,218 +118,162 @@ to those in asynNDArrayDriver.h and ADDriver.h.
 .. cssclass:: table-bordered table-striped table-hover
 .. flat-table::
   :header-rows: 2
-  :widths: 40 30 20 10
+  :widths: 80 10 10
 
   * - **Parameter Definitions in LightField.cpp and EPICS Record Definitions in LightField.template**
   * - Description
-    - drvInfo string
     - EPICS record name
     - EPICS record type
   * - **Acquisition parameters**
   * - The number of on-chip accumulations to perform per image.
-    - LF_NUM_ACCUMULATIONS
-    - ``$(P)$(R)NumAccumulations``, ``$(P)$(R)NumAccumulations_RBV``
+    - $(P)$(R)NumAccumulations, $(P)$(R)NumAccumulations_RBV
     - longout, longin
   * - The number of acquisitions to perform when acquisition is started. This controls
       the number of iterations in the outermost acquisition loop explained above. 
       
       **NOTE: This is not yet implemented, it is planned for a future release.**
-    - LF_NUM_ACQUISITIONS
-    - ``$(P)$(R)NumAcquisitions``, ``$(P)$(R)NumAcquisitions_RBV``
+    - $(P)$(R)NumAcquisitions, $(P)$(R)NumAcquisitions_RBV
     - longout, longin
   * - The number of acquisitions performed so far.
-    - LF_NUM_ACQUISITIONS_COUNTER
-    - ``$(P)$(R)NumAcquisitionsCounter_RBV``
+    - $(P)$(R)NumAcquisitionsCounter_RBV
     - longin
   * - The camera gain. This parameter is used instead of the base class ADGain parameter
       so that it can be displayed as a menu as LightField does.
-    - LF_GAIN
-    - ``$(P)$(R)LFGain``, ``$(P)$(R)LFGain_RBV``
+    - $(P)$(R)LFGain, $(P)$(R)LFGain_RBV
     - mbbo, mbbi
   * - The shutter operating mode for shutters controlled by LightField. Allowed values
       are:
 
-      Normal: 
+      Normal 
         The detector shutter will be opened and closed normally for each exposure.
-      Always closed: 
+      Always closed
         The shutter will be kept closed. Useful for taking a dark current
         image.
-      Always open:
+      Always open
         The shutter will be kept open. Useful if the light source is a strobe
         so the shutter is not needed.
-      Open before trigger: 
+      Open before trigger 
         The detector shutter will be opened before the trigger.
-    - LF_SHUTTER_MODE
-    - ``$(P)$(R)LFShutterMode``, ``$(P)$(R)LFShutterMode_RBV``
+    - $(P)$(R)LFShutterMode, $(P)$(R)LFShutterMode_RBV
     - mbbo, mbbi
   * - **Experiment parameters**
   * - Selects the LightField experiment, which is a set of experimental conditions including
       the selected camera, etc. The record choices are constructed at run-time based on
       the experiment files currently available.
-    - LF_EXPERIMENT_NAME
-    - ``$(P)$(R)LFExperimentName``, ``$(P)$(R)LFExperimentName_RBV``
+    - $(P)$(R)LFExperimentName, $(P)$(R)LFExperimentName_RBV
     - mbbo, mbbi
   * - Updates the choices in the LFExperimentName records. This is only needed if a new
       experiment is created after the EPICS IOC is started.
-    - LF_UPDATE_EXPERIMENTS
-    - ``$(P)$(R)LFUpdateExperiments``
+    - $(P)$(R)LFUpdateExperiments
     - bo
   * - **Spectrometer parameters**
   * - Selects the spectrometer grating. The record choices are constructed at run-time
       based on the gratings actually available.
-    - LF_GRATING
-    - ``$(P)$(R)LFGrating``, ``$(P)$(R)LFGrating_RBV``
+    - $(P)$(R)LFGrating, $(P)$(R)LFGrating_RBV
     - mbbo, mbbi
   * - Selects the center wavelength of the spectrometer.
-    - LF_GRATING_WAVELENGTH
-    - ``$(P)$(R)LFGratingWL``, ``$(P)$(R)LFGratingWL_RBV``
+    - $(P)$(R)LFGratingWL, $(P)$(R)LFGratingWL_RBV
     - ao, ai
   * - Selects the starting wavelength of the spectrometer for Step And Glue.
-    - LF_SAG_STARTING_WAVELENGTH
-    - ``$(P)$(R)LFSAGStartingWL``, ``$(P)$(R)LFSAGStartingWL_RBV``
+    - $(P)$(R)LFSAGStartingWL, $(P)$(R)LFSAGStartingWL_RBV
     - ao, ai
   * - Selects the ending wavelength of the spectrometer for Step And Glue.
-    - LF_SAG_ENDING_WAVELENGTH
-    - ``$(P)$(R)LFSAGEndingWL``, ``$(P)$(R)LFSAGEndingWL_RBV``
+    - $(P)$(R)LFSAGEndingWL, $(P)$(R)LFSAGEndingWL_RBV
     - ao, ai
   * - Enables and disables Step and Glue.
-    - LF_SAG_ENABLE
-    - ``$(P)$(R)LFSAGEnable``, ``$(P)$(R)LFSAGEnable_RBV``
+    - $(P)$(R)LFSAGEnable, $(P)$(R)LFSAGEnable_RBV
     - bo, bi
   * - Selects the entrance width of the side port on the spectrometer in microns.
-    - LF_ENTRANCE_SIDE_WIDTH
-    - ``$(P)$(R)LFEntranceWidth``, ``$(P)$(R)LFEntranceWidth_RBV``
+    - $(P)$(R)LFEntranceWidth, $(P)$(R)LFEntranceWidth_RBV
     - longout, longin
   * - Selects the entrance port of the spectrometer. Choices are:
       
       + Side
       + Front
-    - LF_ENTRANCE_SELECTED
-    - ``$(P)$(R)LFEntrancePort``, ``$(P)$(R)LFEntrancePort_RBV``
+    - $(P)$(R)LFEntrancePort, $(P)$(R)LFEntrancePort_RBV
     - mbbo, mbbi
   * - Selects the exit port of the spectrometer. Choices are:
       
       + Side
       + Front
-    - LF_EXIT_SELECTED
-    - ``$(P)$(R)LFExitPort``, ``$(P)$(R)LFExitPort_RBV``
+    - $(P)$(R)LFExitPort, $(P)$(R)LFExitPort_RBV
     - mbbo, mbbi
   * - **File name parameters. These are in addition to the normal parameters from NDFile.template.**
   * - The actual file path for saving data.
-    - LF_FILE_PATH
-    - ``$(P)$(R)LFFilePath_RBV``
+    - $(P)$(R)LFFilePath_RBV
     - waveform
   * - The actual file name for saving data.
-    - LF_FILE_NAME
-    - ``$(P)$(R)LFFileName_RBV``
+    - $(P)$(R)LFFileName_RBV
     - waveform
   * - The file path to use for saving background data.
-    - LF_BACKGROUND_PATH
-    - ``$(P)$(R)LFBackgroundPath``
-      , ``$(P)$(R)LFBackgroundPath_RBV``
-    - waveform
-      , waveform
+    - $(P)$(R)LFBackgroundPath, $(P)$(R)LFBackgroundPath_RBV
+    - waveform, waveform
   * - Flag to indicate if the file path to use for saving background data exists. If it
-      does not exist it will be created if the ``$(P)$(R)CreateDirectory`` PV is set appropriately.
-    - LF_BACKGROUND_PATH_EXISTS
-    - ``$(P)$(R)LFBackgroundPathExists_RBV``
+      does not exist it will be created if the $(P)$(R)CreateDirectory PV is set appropriately.
+    - $(P)$(R)LFBackgroundPathExists_RBV
     - bi
   * - The file name to use for saving background data.
-    - LF_BACKGROUND_FILE
-    - ``$(P)$(R)LFBackgroundFile``
-      , ``$(P)$(R)LFBackgroundFile_RBV``
-    - waveform
-      , waveform
+    - $(P)$(R)LFBackgroundFile, $(P)$(R)LFBackgroundFile_RBV
+    - waveform, waveform
   * - The actual full file name for saving background data.
-    - LF_BACKGROUND_FULL_FILE
-    - ``$(P)$(R)LFBackgroundFullFile_RBV``
+    - $(P)$(R)LFBackgroundFullFile_RBV
     - waveform
   * - Enable background correction.
-    - LF_BACKGROUND_ENABLE
-    - ``$(P)$(R)LFBackgroundEnable``
-      , ``$(P)$(R)LFBackgroundEnable_RBV``
-    - bo
-      , bi
+    - $(P)$(R)LFBackgroundEnable, $(P)$(R)LFBackgroundEnable_RBV
+    - bo, bi
   * - **Image intensifier and timing parameters.**
   * - Enable image intensifier.
-    - LF_INTENSIFIER_ENABLE
-    - ``$(P)$(R)LFIntensifierEnable``
-      , ``$(P)$(R)LFIntensifierEnable_RBV``
-    - bo
-      , bi
+    - $(P)$(R)LFIntensifierEnable, $(P)$(R)LFIntensifierEnable_RBV
+    - bo, bi
   * - Image intensifier gain.
-    - LF_INTENSIFIER_GAIN
-    - ``$(P)$(R)LFIntensifierGain``
-      , ``$(P)$(R)LFIntensifierGain_RBV``
-    - ao
-      , ai
+    - $(P)$(R)LFIntensifierGain, $(P)$(R)LFIntensifierGain_RBV
+    - ao, ai
   * - Image intensifier gating mode. Choices are:
 
       + Repetitive
       + Sequential
-    - LF_GATING_MODE
-    - ``$(P)$(R)LFGatingMode``
-      , ``$(P)$(R)LFGatingMode_RBV``
-    - mbbo
-      , mbbi
+    - $(P)$(R)LFGatingMode, $(P)$(R)LFGatingMode_RBV
+    - mbbo, mbbi
   * - Selects the intensifier trigger frequency.
-    - LF_TRIGGER_FREQUENCY
-    - ``$(P)$(R)LFTriggerFrequency``, ``$(P)$(R)LFTriggerFrequency_RBV``
+    - $(P)$(R)LFTriggerFrequency, $(P)$(R)LFTriggerFrequency_RBV
     - ao, ai
   * - Enable sync master.
-    - LF_SYNCMASTER_ENABLE
-    - ``$(P)$(R)LFSyncMasterEnable``
-      , ``$(P)$(R)LFSyncMasterEnable_RBV``
-    - bo
-      , bi
+    - $(P)$(R)LFSyncMasterEnable, $(P)$(R)LFSyncMasterEnable_RBV
+    - bo, bi
   * - Selects the sync master 2 delay.
-    - LF_SYNCMASTER2_DELAY
-    - ``$(P)$(R)LFSyncMaster2Delay``, ``$(P)$(R)LFSyncMaster2Delay_RBV``
+    - $(P)$(R)LFSyncMaster2Delay, $(P)$(R)LFSyncMaster2Delay_RBV
     - ao, ai
   * - Selects the repetitive gate width.
-    - LF_REP_GATE_WIDTH
-    - ``$(P)$(R)LFRepGateWidth``, ``$(P)$(R)LFRepGateWidth_RBV``
+    - $(P)$(R)LFRepGateWidth, $(P)$(R)LFRepGateWidth_RBV
     - ao, ai
   * - Selects the repetitive gate delay.
-    - LF_REP_GATE_DELAY
-    - ``$(P)$(R)LFRepGateDelay``, ``$(P)$(R)LFRepGateDelay_RBV``
+    - $(P)$(R)LFRepGateDelay, $(P)$(R)LFRepGateDelay_RBV
     - ao, ai
   * - Selects the sequential start gate width.
-    - LF_SEQ_START_GATE_WIDTH
-    - ``$(P)$(R)LFSeqStartGateWidth``, ``$(P)$(R)LFSeqStartGateWidth_RBV``
+    - $(P)$(R)LFSeqStartGateWidth, $(P)$(R)LFSeqStartGateWidth_RBV
     - ao, ai
   * - Selects the sequential start gate delay.
-    - LF_SEQ_START_GATE_DELAY
-    - ``$(P)$(R)LFSeqStartGateDelay``, ``$(P)$(R)LFSeqStartGateDelay_RBV``
+    - $(P)$(R)LFSeqStartGateDelay, $(P)$(R)LFSeqStartGateDelay_RBV
     - ao, ai
   * - Selects the sequential end gate width.
-    - LF_SEQ_END_GATE_WIDTH
-    - ``$(P)$(R)LFSeqEndGateWidth``, ``$(P)$(R)LFSeqEndGateWidth_RBV``
+    - $(P)$(R)LFSeqEndGateWidth, $(P)$(R)LFSeqEndGateWidth_RBV
     - ao, ai
   * - Selects the sequential end gate delay.
-    - LF_SEQ_END_GATE_DELAY
-    - ``$(P)$(R)LFSeqEndGateDelay``, ``$(P)$(R)LFSeqEndGateDelay_RBV``
+    - $(P)$(R)LFSeqEndGateDelay, $(P)$(R)LFSeqEndGateDelay_RBV
     - ao, ai
   * - Selects the auxiliary width.
-    - LF_AUX_WIDTH
-    - ``$(P)$(R)LFAuxWidth``, ``$(P)$(R)LFAuxWidth_RBV``
+    - $(P)$(R)LFAuxWidth, $(P)$(R)LFAuxWidth_RBV
     - ao, ai
   * - Selects the auxiliary delay.
-    - LF_AUX_WIDTH
-    - ``$(P)$(R)LFAuxDelay``, ``$(P)$(R)LFAuxDelay_RBV``
+    - $(P)$(R)LFAuxDelay, $(P)$(R)LFAuxDelay_RBV
     - ao, ai
   * - **Miscellaneous parameters.**
   * - Enable background correction.
-    - LF_BACKGROUND_ENABLE
-    - ``$(P)$(R)LFBackgroundEnable``
-      , ``$(P)$(R)LFBackgroundEnable_RBV``
-    - bo
-      , bi
+    - $(P)$(R)LFBackgroundEnable, $(P)$(R)LFBackgroundEnable_RBV
+    - bo, bi
   * - Flag indicating if LighField is ready to collect data.
-    - LF_READY_TO_RUN
-    - ``$(P)$(R)ReadyToRun``
+    - $(P)$(R)ReadyToRun
     - bi
-
 
 Configuration
 -------------
@@ -341,8 +285,6 @@ either from C/C++ or from the EPICS IOC shell. ::
                     int maxBuffers, size_t maxMemory,
                     int priority, int stackSize)
       
-
-
 For details on the meaning of the parameters to this function refer to
 the detailed documentation on the LightFieldConfig function in the 
 `LightField.cpp documentation`_ and in the documentation for the
@@ -350,8 +292,6 @@ constructor for the `LightField class`_.
 
 There an example IOC boot directory and startup script provided 
 with areaDetector:  :doc:`st_cmd`.
-
-
 
 MEDM screens
 ------------
@@ -361,7 +301,6 @@ LightField detector. Note that the general purpose screen ADBase.adl
 can be used, but it exposes a few controls that are not applicable to
 the LightField, and lacks some fields that are important for the
 LightField.
-
 
 LightField.adl
 ~~~~~~~~~~~~~~
@@ -391,15 +330,9 @@ Restrictions
 
 The following are some current restrictions of the LightField driver:
 
-
-+ The driver has only been successfully built with the commercial
-  version of Visual Studio. It does not seem to be possible to build
-  with the free Express version of Visual Studio because it lacks
-  support for the Microsoft Foundation Classes (MFC).
 + If LightField encounters an error it will crash the IOC. The driver
   establishes an exception handler, but this does not seem to work
   correctly with the LightField CLR interface.
-
 
 .. _LightField.cpp documentation: ../areaDetectorDoxygenHTML/_light_field_8cpp.html
 .. _Princeton Instruments: http://www.princetoninstruments.com/
