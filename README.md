@@ -13,5 +13,5 @@ areaDetector driver effectively "drives" LightField through the CLR interface, p
 most of the same operations that can be performed using the LightField GUI.
 
 Additional information:
-* [Documentation](https://cars.uchicago.edu/software/epics/LightFieldDoc.html).
-* [Release notes and links to source and binary releases](RELEASE.md).
+* [Documentation](https://areadetector.github.io/master/ADLightField/ADLightField.html)
+* [Release notes and links to source and binary releases](RELEASE.md)
