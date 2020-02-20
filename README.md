@@ -2,7 +2,7 @@ ADLightField
 ===========
 An 
 [EPICS](http://www.aps.anl.gov/epics/) 
-[areaDetector](https://cars.uchicago.edu/software/epics/areaDetector.html) 
+[areaDetector](https://github.com/areaDetector/areaDetector/blob/master/README.md) 
 driver for recent 
 [Princeton Instruments](http://www.princetoninstruments.com/)
 detectors including the ProEM, PIXIS, PI-MAX3, PI-MAX4, PyLoN, and Quad-RO. 
