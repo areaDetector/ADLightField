@@ -290,6 +290,14 @@ the detailed documentation on the LightFieldConfig function in the
 `LightField.cpp documentation`_ and in the documentation for the
 constructor for the `LightField class`_.
 
+Example st.cmd startup file
+---------------------------
+
+.. toctree::
+   :hidden:
+   
+   st_cmd.rst
+
 There an example IOC boot directory and startup script provided 
 with areaDetector:  :doc:`st_cmd`.
 
