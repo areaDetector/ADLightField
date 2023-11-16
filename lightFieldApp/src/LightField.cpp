@@ -645,7 +645,6 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
   size_t        dims[2];
   NDArray       *pImage;
   NDDataType_t  dataType;
-  epicsTimeStamp currentTime;
   static const char *functionName = "frameCallback";
     
   asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
@@ -717,9 +716,8 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
     setIntegerParam(NDArraySizeY, (int)pImage->dims[1].size);
 
     pImage->uniqueId = arrayCounter;
-    epicsTimeGetCurrent(&currentTime);
-    pImage->timeStamp = currentTime.secPastEpoch + currentTime.nsec / 1.e9;
     updateTimeStamp(&pImage->epicsTS);
+    pImage->timeStamp = pImage->epicsTS.secPastEpoch + pImage->epicsTS.nsec / 1.e9;
 
     /* Get any attributes that have been defined for this driver */
     getAttributes(pImage->pAttributeList);
