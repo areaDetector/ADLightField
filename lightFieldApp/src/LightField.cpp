@@ -716,8 +716,7 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
     setIntegerParam(NDArraySizeY, (int)pImage->dims[1].size);
 
     pImage->uniqueId = arrayCounter;
-    updateTimeStamp(&pImage->epicsTS);
-    pImage->timeStamp = pImage->epicsTS.secPastEpoch + pImage->epicsTS.nsec / 1.e9;
+    updateTimeStamps(pImage);
 
     /* Get any attributes that have been defined for this driver */
     getAttributes(pImage->pAttributeList);
