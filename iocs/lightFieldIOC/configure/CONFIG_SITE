@@ -43,3 +43,5 @@ endif
 # For some reason LightField and GraphicsMagick don't work together
 WITH_GRAPHICSMAGICK=NO
 
+# Get local settings which can override those from areaDetector
+-include $(TOP)/configure/CONFIG_SITE.local
