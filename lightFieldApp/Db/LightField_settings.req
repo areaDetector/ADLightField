@@ -8,7 +8,8 @@ $(P)$(R)LFGratingWL
 $(P)$(R)LFSAGEnable
 $(P)$(R)LFSAGStartingWL
 $(P)$(R)LFSAGEndingWL
-$(P)$(R)LFEntranceWidth
+$(P)$(R)LFEntranceSideWidth
+$(P)$(R)LFEntranceFrontWidth
 $(P)$(R)LFEntrancePort
 $(P)$(R)LFExitPort
 $(P)$(R)LFBackgroundPath

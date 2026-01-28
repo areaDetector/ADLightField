@@ -261,17 +261,31 @@ record(ai, "$(P)$(R)LFSAGEndingWL_RBV")
     field(PREC, "3")
 }
 
-record(longout, "$(P)$(R)LFEntranceWidth")
+record(longout, "$(P)$(R)LFEntranceSideWidth")
 {
     field(PINI, "YES")
     field(DTYP, "asynInt32")
     field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_ENTRANCE_SIDE_WIDTH")
 }
 
-record(longin, "$(P)$(R)LFEntranceWidth_RBV")
+record(longin, "$(P)$(R)LFEntranceSideWidth_RBV")
 {
     field(DTYP, "asynInt32")
     field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_ENTRANCE_SIDE_WIDTH")
+    field(SCAN, "I/O Intr")
+}
+
+record(longout, "$(P)$(R)LFEntranceFrontWidth")
+{
+    field(PINI, "YES")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_ENTRANCE_FRONT_WIDTH")
+}
+
+record(longin, "$(P)$(R)LFEntranceFrontWidth_RBV")
+{
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))LF_ENTRANCE_FRONT_WIDTH")
     field(SCAN, "I/O Intr")
 }
 
