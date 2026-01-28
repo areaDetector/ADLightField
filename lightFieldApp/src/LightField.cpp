@@ -32,7 +32,7 @@
 
 #include <epicsExport.h>
 
-#define DRIVER_VERSION      "2.6.0"
+#define DRIVER_VERSION      "2.7.0"
 #define LIGHTFIELD_VERSION  "6.4.1"
 
 #define LF_POLL_TIME 1.0
