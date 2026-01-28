@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
             
             // Break loop on finding camera
             bCameraFound = true;
-            printf("LFTest1, found camera %s\n", cameraName);
+            printf("LFTest1, found camera %s\n", (LPCTSTR)cameraName);
             break;
         }
     }
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
                  cameraName = device->Model;
 
                  // Add the device to the experiment
-                 printf("LFTest1, adding camera %s\n", cameraName);
+                 printf("LFTest1, adding camera %s\n", (LPCTSTR)cameraName);
                  m_Experiment->Add(device);
                              
                  // Break loop on finding camera
