@@ -8,7 +8,7 @@
  * Created: August 14, 2013
  *
  */
- 
+
 #include "stdafx.h"
 
 #include <string>
@@ -60,6 +60,7 @@ static const char *driverName = "LightField";
 #define LFSAGStartingWavelengthString  "LF_SAG_STARTING_WAVELENGTH"
 #define LFSAGEndingWavelengthString    "LF_SAG_ENDING_WAVELENGTH"
 #define LFEntranceSideWidthString      "LF_ENTRANCE_SIDE_WIDTH"
+#define LFEntranceFrontWidthString     "LF_ENTRANCE_FRONT_WIDTH"
 #define LFEntranceSelectedString       "LF_ENTRANCE_SELECTED"
 #define LFExitSelectedString           "LF_EXIT_SELECTED"
 #define LFExperimentNameString         "LF_EXPERIMENT_NAME"
@@ -120,13 +121,13 @@ public:
     LightField(const char *portName, const char *experimentName,
                int maxBuffers, size_t maxMemory,
                int priority, int stackSize);
-                 
+
     /* These are the methods that we override from ADDriver */
     virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
     virtual asynStatus writeFloat64(asynUser *pasynUser, epicsFloat64 value);
-    virtual asynStatus writeOctet(asynUser *pasynUser, const char *value, 
+    virtual asynStatus writeOctet(asynUser *pasynUser, const char *value,
                             size_t nChars, size_t *nActual);
-    virtual asynStatus readEnum(asynUser *pasynUser, char *strings[], int values[], int severities[], 
+    virtual asynStatus readEnum(asynUser *pasynUser, char *strings[], int values[], int severities[],
                             size_t nElements, size_t *nIn);
     virtual void setShutter(int open);
     virtual void report(FILE *fp, int details);
@@ -147,6 +148,7 @@ protected:
     int LFSAGStartingWavelength_;
     int LFSAGEndingWavelength_;
     int LFEntranceSideWidth_;
+    int LFEntranceFrontWidth_;
     int LFEntranceSelected_;
     int LFExitSelected_;
     int LFExperimentName_;
@@ -175,8 +177,8 @@ protected:
     int LFFilePath_;
     int LFFileName_;
     #define LAST_LF_PARAM LFFileName_
-         
-private:                               
+
+private:
     settingMap* findSettingMap(String^ setting);
     settingMap* findSettingMap(int param);
     asynStatus setFilePathAndName(bool doAutoIncrement);
@@ -252,15 +254,15 @@ extern "C" int LightFieldConfig(const char *portName, const char *experimentName
 }
 
 /** Constructor for LightField driver; most parameters are simply passed to ADDriver::ADDriver.
-  * After calling the base class constructor this method creates a thread to collect the detector data, 
+  * After calling the base class constructor this method creates a thread to collect the detector data,
   * and sets reasonable default values for the parameters defined in this class, asynNDArrayDriver and
   * ADDriver.
   * \param[in] portName The name of the asyn port driver to be created.
   * \param[in] experimentName The name of the experiment to open initially.  Set this to an empty string
   *            to open the default experiment in LightField.
-  * \param[in] maxBuffers The maximum number of NDArray buffers that the NDArrayPool for this driver is 
+  * \param[in] maxBuffers The maximum number of NDArray buffers that the NDArrayPool for this driver is
   *            allowed to allocate. Set this to -1 to allow an unlimited number of buffers.
-  * \param[in] maxMemory The maximum amount of memory that the NDArrayPool for this driver is 
+  * \param[in] maxMemory The maximum amount of memory that the NDArrayPool for this driver is
   *            allowed to allocate. Set this to -1 to allow an unlimited amount of memory.
   * \param[in] priority The thread priority for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
   * \param[in] stackSize The stack size for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
@@ -269,7 +271,7 @@ LightField::LightField(const char *portName, const char* experimentName,
              int maxBuffers, size_t maxMemory,
              int priority, int stackSize)
 
-    : ADDriver(portName, 1, NUM_LF_PARAMS, maxBuffers, maxMemory, 
+    : ADDriver(portName, 1, NUM_LF_PARAMS, maxBuffers, maxMemory,
                asynEnumMask,             /* Interfaces beyond those set in ADDriver.cpp */
                asynEnumMask,             /* Interfaces beyond those set in ADDriver.cpp */
                ASYN_CANBLOCK, 1, /* ASYN_CANBLOCK=1, ASYN_MULTIDEVICE=0, autoConnect=1 */
@@ -281,10 +283,10 @@ LightField::LightField(const char *portName, const char* experimentName,
 
     // Set the static object pointer
     LightField_ = this;
-    
+
     // Set up an exit handler
     epicsAtExit(LFExitHandler, (void *)this);
-    
+
     exiting_ = false;
 
     lock();
@@ -297,6 +299,7 @@ LightField::LightField(const char *portName, const char* experimentName,
     createParam(LFSAGStartingWavelengthString, asynParamFloat64,   &LFSAGStartingWavelength_);
     createParam(LFSAGEndingWavelengthString,   asynParamFloat64,   &LFSAGEndingWavelength_);
     createParam(LFEntranceSideWidthString,       asynParamInt32,   &LFEntranceSideWidth_);
+    createParam(LFEntranceFrontWidthString,      asynParamInt32,   &LFEntranceFrontWidth_);
     createParam(LFEntranceSelectedString,        asynParamInt32,   &LFEntranceSelected_);
     createParam(LFExitSelectedString,            asynParamInt32,   &LFExitSelected_);
     createParam(LFExperimentNameString,          asynParamInt32,   &LFExperimentName_);
@@ -331,99 +334,101 @@ LightField::LightField(const char *portName, const char* experimentName,
     setStringParam(NDDriverVersion, DRIVER_VERSION);
 
     ellInit(&settingList_);
-    addSetting(ADMaxSizeX,          CameraSettings::SensorInformationActiveAreaWidth,                           
+    addSetting(ADMaxSizeX,          CameraSettings::SensorInformationActiveAreaWidth,
                 asynParamInt32, LFSettingInt32);
-    addSetting(ADMaxSizeY,          CameraSettings::SensorInformationActiveAreaHeight,                          
+    addSetting(ADMaxSizeY,          CameraSettings::SensorInformationActiveAreaHeight,
                 asynParamInt32, LFSettingInt32);
-    addSetting(ADAcquireTime,       CameraSettings::ShutterTimingExposureTime,                                  
+    addSetting(ADAcquireTime,       CameraSettings::ShutterTimingExposureTime,
                 asynParamFloat64, LFSettingDouble);
-    addSetting(ADNumImages,         ExperimentSettings::AcquisitionFramesToStore,                               
+    addSetting(ADNumImages,         ExperimentSettings::AcquisitionFramesToStore,
                 asynParamInt32, LFSettingInt64);
-    addSetting(ADNumExposures,      ExperimentSettings::OnlineProcessingFrameCombinationFramesCombined,         
+    addSetting(ADNumExposures,      ExperimentSettings::OnlineProcessingFrameCombinationFramesCombined,
                 asynParamInt32, LFSettingInt64);
-    addSetting(ADReverseX,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally, 
+    addSetting(ADReverseX,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipHorizontally,
                 asynParamInt32, LFSettingBoolean);
-    addSetting(ADReverseY,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically,   
+    addSetting(ADReverseY,          ExperimentSettings::OnlineCorrectionsOrientationCorrectionFlipVertically,
                 asynParamInt32, LFSettingBoolean);
-    addSetting(ADTriggerMode,       CameraSettings::HardwareIOTriggerSource,                                    
+    addSetting(ADTriggerMode,       CameraSettings::HardwareIOTriggerSource,
                 asynParamInt32, LFSettingEnum);
-    addSetting(ADTemperature,       CameraSettings::SensorTemperatureSetPoint,                                  
+    addSetting(ADTemperature,       CameraSettings::SensorTemperatureSetPoint,
                 asynParamFloat64, LFSettingDouble);
-    addSetting(ADTemperatureActual, CameraSettings::SensorTemperatureReading,                                   
+    addSetting(ADTemperatureActual, CameraSettings::SensorTemperatureReading,
                 asynParamFloat64, LFSettingDouble);
-    addSetting(LFGain_,             CameraSettings::AdcAnalogGain,                                              
+    addSetting(LFGain_,             CameraSettings::AdcAnalogGain,
                 asynParamInt32, LFSettingEnum);
-    addSetting(LFNumAccumulations_, CameraSettings::ReadoutControlAccumulations,                                
+    addSetting(LFNumAccumulations_, CameraSettings::ReadoutControlAccumulations,
                 asynParamInt32, LFSettingInt64);
-    addSetting(LFEntranceSideWidth_,SpectrometerSettings::OpticalPortEntranceSideWidth,                         
+    addSetting(LFEntranceSideWidth_,SpectrometerSettings::OpticalPortEntranceSideWidth,
                 asynParamInt32, LFSettingInt32);
-    addSetting(LFEntranceSelected_,SpectrometerSettings::OpticalPortEntranceSelected,                         
+    addSetting(LFEntranceFrontWidth_,SpectrometerSettings::OpticalPortEntranceFrontWidth,
                 asynParamInt32, LFSettingInt32);
-    addSetting(LFExitSelected_,     SpectrometerSettings::OpticalPortExitSelected,                              
+    addSetting(LFEntranceSelected_,SpectrometerSettings::OpticalPortEntranceSelected,
+                asynParamInt32, LFSettingInt32);
+    addSetting(LFExitSelected_,     SpectrometerSettings::OpticalPortExitSelected,
                 asynParamInt32, LFSettingEnum);
-    addSetting(LFShutterMode_,      CameraSettings::ShutterTimingMode,                                          
+    addSetting(LFShutterMode_,      CameraSettings::ShutterTimingMode,
                 asynParamInt32, LFSettingEnum);
-    addSetting(LFBackgroundFullFile_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionReferenceFile,           
+    addSetting(LFBackgroundFullFile_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionReferenceFile,
                 asynParamOctet, LFSettingString);
-    addSetting(LFBackgroundEnable_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionEnabled,           
+    addSetting(LFBackgroundEnable_, ExperimentSettings::OnlineCorrectionsBackgroundCorrectionEnabled,
                 asynParamInt32, LFSettingBoolean);
-    addSetting(LFGrating_,          SpectrometerSettings::GratingSelected,                              
+    addSetting(LFGrating_,          SpectrometerSettings::GratingSelected,
                 asynParamInt32, LFSettingString);
-    addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,                              
+    addSetting(LFGratingWavelength_,SpectrometerSettings::GratingCenterWavelength,
                 asynParamFloat64, LFSettingDouble);
-    addSetting(LFSAGEnable_, ExperimentSettings::StepAndGlueEnabled,           
+    addSetting(LFSAGEnable_, ExperimentSettings::StepAndGlueEnabled,
                 asynParamInt32, LFSettingBoolean);
-    addSetting(LFSAGStartingWavelength_, ExperimentSettings::StepAndGlueStartingWavelength,                              
+    addSetting(LFSAGStartingWavelength_, ExperimentSettings::StepAndGlueStartingWavelength,
                 asynParamFloat64, LFSettingDouble);
-    addSetting(LFSAGEndingWavelength_, ExperimentSettings::StepAndGlueEndingWavelength,                              
+    addSetting(LFSAGEndingWavelength_, ExperimentSettings::StepAndGlueEndingWavelength,
                 asynParamFloat64, LFSettingDouble);
-    addSetting(LFIntensifierEnable_, CameraSettings::IntensifierEnabled,                              
+    addSetting(LFIntensifierEnable_, CameraSettings::IntensifierEnabled,
                 asynParamInt32, LFSettingBoolean);
-    addSetting(LFIntensifierGain_, CameraSettings::IntensifierGain,                              
+    addSetting(LFIntensifierGain_, CameraSettings::IntensifierGain,
                 asynParamInt32, LFSettingInt32);
-    addSetting(LFGatingMode_,       CameraSettings::IntensifierGatingMode,                              
+    addSetting(LFGatingMode_,       CameraSettings::IntensifierGatingMode,
                 asynParamInt32, LFSettingEnum);
-    addSetting(LFTriggerFrequency_, CameraSettings::HardwareIOTriggerFrequency,                              
+    addSetting(LFTriggerFrequency_, CameraSettings::HardwareIOTriggerFrequency,
                 asynParamFloat64, LFSettingDouble);
-    addSetting(LFSyncMasterEnable_, CameraSettings::HardwareIOSyncMasterEnabled,                              
+    addSetting(LFSyncMasterEnable_, CameraSettings::HardwareIOSyncMasterEnabled,
                 asynParamInt32, LFSettingBoolean);
-    addSetting(LFSyncMaster2Delay_, CameraSettings::HardwareIOSyncMaster2Delay,                              
+    addSetting(LFSyncMaster2Delay_, CameraSettings::HardwareIOSyncMaster2Delay,
                 asynParamFloat64, LFSettingDouble);
-    addSetting(LFRepGateWidth_, CameraSettings::IntensifierGatingRepetitiveGate,                              
+    addSetting(LFRepGateWidth_, CameraSettings::IntensifierGatingRepetitiveGate,
                 asynParamFloat64, LFSettingPulse);
-    addSetting(LFSeqStartGateWidth_, CameraSettings::IntensifierGatingSequentialStartingGate,                              
+    addSetting(LFSeqStartGateWidth_, CameraSettings::IntensifierGatingSequentialStartingGate,
                 asynParamFloat64, LFSettingPulse);
-    addSetting(LFSeqEndGateWidth_, CameraSettings::IntensifierGatingSequentialEndingGate,                              
+    addSetting(LFSeqEndGateWidth_, CameraSettings::IntensifierGatingSequentialEndingGate,
                 asynParamFloat64, LFSettingPulse);
-    addSetting(LFAuxWidth_,        CameraSettings::HardwareIOAuxOutput,                              
+    addSetting(LFAuxWidth_,        CameraSettings::HardwareIOAuxOutput,
                 asynParamFloat64, LFSettingPulse);
-    addSetting(LFFilePath_,        ExperimentSettings::FileNameGenerationDirectory,                              
+    addSetting(LFFilePath_,        ExperimentSettings::FileNameGenerationDirectory,
                 asynParamOctet, LFSettingString);
-    addSetting(LFFileName_,       ExperimentSettings::FileNameGenerationBaseFileName,                              
+    addSetting(LFFileName_,       ExperimentSettings::FileNameGenerationBaseFileName,
                 asynParamOctet, LFSettingString);
-    addSetting(ADBinX,            CameraSettings::ReadoutControlRegionsOfInterestResult,                              
+    addSetting(ADBinX,            CameraSettings::ReadoutControlRegionsOfInterestResult,
                 asynParamInt32, LFSettingROI);
- 
- 
+
+
     // options can include a list of files to open when launching LightField
     List<String^>^ options = gcnew List<String^>();
-    Automation_ = gcnew PrincetonInstruments::LightField::Automation::Automation(true, options);   
+    Automation_ = gcnew PrincetonInstruments::LightField::Automation::Automation(true, options);
 
     // Get the application interface from the automation
  	  Application_ = Automation_->LightFieldApplication;
 
     // Get the experiment interface from the application
     Experiment_  = Application_->Experiment;
-    
-    // Connect the acquisition event handler       
-    Experiment_->ExperimentCompleted += 
+
+    // Connect the acquisition event handler
+    Experiment_->ExperimentCompleted +=
         gcnew System::EventHandler<ExperimentCompletedEventArgs^>(&completionEventHandler);
 
-    // Connect the image data event handler       
+    // Connect the image data event handler
     Experiment_->ImageDataSetReceived +=
         gcnew System::EventHandler<ImageDataSetReceivedEventArgs^>(&imageDataEventHandler);
 
-    // Connect the setting changed event handler       
+    // Connect the setting changed event handler
     Experiment_->SettingChanged +=
         gcnew System::EventHandler<SettingChangedEventArgs^>(&settingChangedEventHandler);
 
@@ -436,13 +441,13 @@ LightField::LightField(const char *portName, const char* experimentName,
 
     // Open the experiment
     openExperiment(experimentName);
-    
+
     /* Create the thread that polls for status */
     status = (epicsThreadCreate("LFTask",
                                 epicsThreadPriorityMedium,
                                 epicsThreadGetStackSize(epicsThreadStackMedium),
                                 (EPICSTHREADFUNC)LFPollerTask,
-                                this) == NULL);    
+                                this) == NULL);
     unlock();
 
 }
@@ -458,13 +463,13 @@ asynStatus LightField::addSetting(int param, String^ setting, asynParamType epic
     return asynSuccess;
 }
 
-asynStatus LightField::openExperiment(const char *experimentName) 
+asynStatus LightField::openExperiment(const char *experimentName)
 {
     static const char *functionName = "openExperiment";
-    
+
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
-    
+
     setIntegerParam(ADStatus, ADStatusWaiting);
     callParamCallbacks();
 
@@ -477,14 +482,14 @@ asynStatus LightField::openExperiment(const char *experimentName)
     bool bCameraFound = false;
     CString cameraName;
     // Look for a camera already added to the experiment
-    List<PrincetonInstruments::LightField::AddIns::IDevice^> deviceList = Experiment_->ExperimentDevices;        
+    List<PrincetonInstruments::LightField::AddIns::IDevice^> deviceList = Experiment_->ExperimentDevices;
     for each(IDevice^% device in deviceList)
     {
         if (device->Type == DeviceType::Camera)
         {
             // Cache the name
             cameraName = device->Model;
-            
+
             // Break loop on finding camera
             bCameraFound = true;
             break;
@@ -509,7 +514,7 @@ asynStatus LightField::openExperiment(const char *experimentName)
     setExperimentInteger(ExperimentSettings::FileNameGenerationAttachIncrement, false);
 
     gratingList_    = gcnew List<String^>(buildFeatureList(SpectrometerSettings::GratingSelected));
-        
+
     // Read the settings from the camera and ask for callbacks on each setting
     List<String^>^ filterList = gcnew List<String^>;
     settingMap *ps = (settingMap *)ellFirst(&settingList_);
@@ -522,7 +527,7 @@ asynStatus LightField::openExperiment(const char *experimentName)
         ps = (settingMap *)ellNext(&ps->node);
     }
     Experiment_->FilterSettingChanged(filterList);
-    
+
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: exit\n", driverName, functionName);
     return asynSuccess;
@@ -569,7 +574,7 @@ void LightField::setAcquisitionComplete()
 {
     int imageMode;
     static const char *functionName = "setAcquisitionComplete";
-    
+
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
     lock();
@@ -581,7 +586,7 @@ void LightField::setAcquisitionComplete()
         setExperimentInteger(LFBackgroundEnable_, backgroundWasEnabled_);
         setBackgroundFile();
     }
-        
+
     callParamCallbacks();
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: exit\n", driverName, functionName);
@@ -591,7 +596,7 @@ void LightField::setAcquisitionComplete()
 List<String^>^ LightField::buildFeatureList(String^ feature)
 {
     static const char *functionName = "buildFeatureList";
-    
+
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
     List<String^>^ list = gcnew List<String^>;
@@ -609,7 +614,7 @@ List<String^>^ LightField::buildFeatureList(String^ feature)
 void LightField::settingChangedCallback(SettingChangedEventArgs^ args)
 {
     static const char *functionName = "settingChangedCallback";
-    
+
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
     lock();
@@ -622,7 +627,7 @@ void LightField::settingChangedCallback(SettingChangedEventArgs^ args)
 void LightField::exitHandler(void *args)
 {
     static const char *functionName = "exitHandler";
-    
+
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
     lock();
@@ -647,7 +652,7 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
   NDDataType_t  dataType;
   epicsTimeStamp currentTime;
   static const char *functionName = "frameCallback";
-    
+
   asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
       "%s:%s: entry\n", driverName, functionName);
   lock();
@@ -664,7 +669,7 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
   getIntegerParam(NDArrayCallbacks, &arrayCallbacks);
   if (arrayCallbacks) {
     IImageDataSet^ dataSet = args->ImageDataSet;
-    IImageData^ frame = dataSet->GetFrame(0, 0); 
+    IImageData^ frame = dataSet->GetFrame(0, 0);
     Array^ array = frame->GetData();
     switch (frame->Format) {
       case PixelDataFormat::MonochromeUnsigned16: {
@@ -726,7 +731,7 @@ void LightField::frameCallback(ImageDataSetReceivedEventArgs^ args)
 
     /* Call the NDArray callback */
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
-      "%s:%s: calling imageData callback\n", 
+      "%s:%s: calling imageData callback\n",
       driverName, functionName);
     doCallbacksGenericPointer(pImage, NDArrayData, 0);
   }
@@ -789,33 +794,33 @@ asynStatus LightField::setFilePathAndName(bool doAutoIncrement)
 
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
-    
+
     status = checkPath();  // This appends trailing "/" if there is no trailing "/" or "\"
     getStringParam(NDFilePath, sizeof(filePath), filePath);
     // Remove trailing \ or / because LightField won't accept it
     len = strlen(filePath);
-    if (len > 0) filePath[len-1] = 0;        
-    status = getStringParam(NDFileName, sizeof(name), name); 
-    status |= getStringParam(NDFileTemplate, sizeof(fileTemplate), fileTemplate); 
+    if (len > 0) filePath[len-1] = 0;
+    status = getStringParam(NDFileName, sizeof(name), name);
+    status |= getStringParam(NDFileTemplate, sizeof(fileTemplate), fileTemplate);
     status |= getIntegerParam(NDFileNumber, &fileNumber);
     status |= getIntegerParam(NDAutoIncrement, &autoIncrement);
     if (status) return asynError;
-    len = epicsSnprintf(fileName, sizeof(fileName), fileTemplate, 
+    len = epicsSnprintf(fileName, sizeof(fileName), fileTemplate,
                         name, fileNumber);
-    if (len < 0) return asynError;    
-    len = epicsSnprintf(fullFileName, sizeof(fullFileName), "%s\\%s", 
+    if (len < 0) return asynError;
+    len = epicsSnprintf(fullFileName, sizeof(fullFileName), "%s\\%s",
                         filePath, fileName);
     if (len < 0) return asynError;
     if (doAutoIncrement && autoIncrement) {
         fileNumber++;
         setIntegerParam(NDFileNumber, fileNumber);
     }
-    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));    
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath));
     Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));
-    setStringParam(NDFullFileName, fullFileName); 
+    setStringParam(NDFullFileName, fullFileName);
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: exit\n", driverName, functionName);
-    return asynSuccess;   
+    return asynSuccess;
 }
 
 asynStatus LightField::setBackgroundFile()
@@ -832,7 +837,7 @@ asynStatus LightField::setBackgroundFile()
 
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
-    
+
     status = getStringParam(LFBackgroundPath_, filePath);
     pathExists = checkPath(filePath);
     setIntegerParam(LFBackgroundPathExists_, pathExists?1:0);
@@ -851,26 +856,26 @@ asynStatus LightField::setBackgroundFile()
         if ((filePath[len-1] == '/') ||
             (filePath[len-1] == '\\')) {
             filePath.resize(len-1);
-        } 
-    } 
-    status = getStringParam(LFBackgroundFile_, sizeof(fileName), fileName); 
+        }
+    }
+    status = getStringParam(LFBackgroundFile_, sizeof(fileName), fileName);
     if (status) return asynError;
-    len = epicsSnprintf(fullFileName, sizeof(fullFileName), "%s\\%s.spe", 
+    len = epicsSnprintf(fullFileName, sizeof(fullFileName), "%s\\%s.spe",
                         filePath.c_str(), fileName);
     if (len < 0) return asynError;
-    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath.c_str()));    
+    Experiment_->SetValue(ExperimentSettings::FileNameGenerationDirectory, gcnew String (filePath.c_str()));
     Experiment_->SetValue(ExperimentSettings::FileNameGenerationBaseFileName, gcnew String (fileName));
-    setStringParam(LFBackgroundFullFile_, fullFileName); 
+    setStringParam(LFBackgroundFullFile_, fullFileName);
     // If this file actually exists then set the background correction file to this.
     // It might not exist if we have not collected it yet.
     stat_ret = stat(fullFileName, &buff);
     if (!stat_ret && (buff.st_mode & S_IFREG)) {
-        Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsBackgroundCorrectionReferenceFile, 
-                              gcnew String(fullFileName));    
+        Experiment_->SetValue(ExperimentSettings::OnlineCorrectionsBackgroundCorrectionReferenceFile,
+                              gcnew String(fullFileName));
     }
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: exit\n", driverName, functionName);
-    return asynSuccess;   
+    return asynSuccess;
 }
 
 
@@ -916,7 +921,7 @@ asynStatus LightField::setROI()
     status = getIntegerParam(ADMaxSizeY, &maxSizeY);
     /* Make sure parameters are consistent, fix them if they are not */
     if (binX < 1) {
-        binX = 1; 
+        binX = 1;
         status = setIntegerParam(ADBinX, binX);
     }
     if (binY < 1) {
@@ -924,25 +929,25 @@ asynStatus LightField::setROI()
         status = setIntegerParam(ADBinY, binY);
     }
     if (minX < 0) {
-        minX = 0; 
+        minX = 0;
         status = setIntegerParam(ADMinX, minX);
     }
     if (minY < 0) {
-        minY = 0; 
+        minY = 0;
         status = setIntegerParam(ADMinY, minY);
     }
     if (minX > maxSizeX-binX) {
-        minX = maxSizeX-binX; 
+        minX = maxSizeX-binX;
         status = setIntegerParam(ADMinX, minX);
     }
     if (minY > maxSizeY-binY) {
-        minY = maxSizeY-binY; 
+        minY = maxSizeY-binY;
         status = setIntegerParam(ADMinY, minY);
     }
-    if (sizeX < binX) sizeX = binX;    
-    if (sizeY < binY) sizeY = binY;    
-    if (minX+sizeX-1 > maxSizeX) sizeX = maxSizeX-minX+1; 
-    if (minY+sizeY-1 > maxSizeY) sizeY = maxSizeY-minY+1; 
+    if (sizeX < binX) sizeX = binX;
+    if (sizeY < binY) sizeY = binY;
+    if (minX+sizeX-1 > maxSizeX) sizeX = maxSizeX-minX+1;
+    if (minY+sizeY-1 > maxSizeY) sizeY = maxSizeY-minY+1;
     sizeX = (sizeX/binX) * binX;
     sizeY = (sizeY/binY) * binY;
     status = setIntegerParam(ADSizeX, sizeX);
@@ -956,8 +961,8 @@ asynStatus LightField::setROI()
     rois[0] = *roi;
 
     // Set the custom regions
-    Experiment_->SetCustomRegions(rois);  
-    
+    Experiment_->SetCustomRegions(rois);
+
     setIntegerParam(ADStatus, ADStatusIdle);
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: exit\n", driverName, functionName);
@@ -971,7 +976,7 @@ void LightField::setShutter(int open)
 
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
         "%s:%s: entry\n", driverName, functionName);
-    
+
     getIntegerParam(ADShutterMode, &shutterMode);
     if (shutterMode == ADShutterModeDetector) {
         /* Simulate a shutter by just changing the status readback */
@@ -1021,7 +1026,7 @@ asynStatus LightField::setExperimentInteger(String^ setting, epicsInt32 value)
 {
     static const char *functionName = "setExperimentInteger";
     asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
-        "%s:%s: entry, setting=%s, value=%d\n", 
+        "%s:%s: entry, setting=%s, value=%d\n",
         driverName, functionName, (CString)setting, value);
     try {
         if (!Experiment_->Exists(setting)) return asynSuccess;
@@ -1032,7 +1037,7 @@ asynStatus LightField::setExperimentInteger(String^ setting, epicsInt32 value)
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: setting=%s, value=%d, exception = %s\n", 
+            "%s:%s: setting=%s, value=%d, exception = %s\n",
             driverName, functionName, (CString)setting, value, pEx->ToString());
     }
     setIntegerParam(ADStatus, ADStatusIdle);
@@ -1054,7 +1059,7 @@ asynStatus LightField::setExperimentDouble(String^ setting, epicsFloat64 value)
 {
     static const char *functionName = "setExperimentDouble";
     asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
-        "%s:%s: entry, setting=%s, value=%f\n", 
+        "%s:%s: entry, setting=%s, value=%f\n",
         driverName, functionName, (CString)setting, value);
     try {
         if (!Experiment_->Exists(setting)) return asynSuccess;
@@ -1065,7 +1070,7 @@ asynStatus LightField::setExperimentDouble(String^ setting, epicsFloat64 value)
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: setting=%s, value=%f, exception = %s\n", 
+            "%s:%s: setting=%s, value=%f, exception = %s\n",
             driverName, functionName, (CString)setting, value, pEx->ToString());
     }
     setIntegerParam(ADStatus, ADStatusIdle);
@@ -1092,7 +1097,7 @@ asynStatus LightField::setExperimentPulse(int param, double width, double delay)
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: setting=%s, width=%f, delay=%f, exception = %s\n", 
+            "%s:%s: setting=%s, width=%f, delay=%f, exception = %s\n",
             driverName, functionName, (CString)setting, pulse->Width, pulse->Delay, pEx->ToString());
     }
     setIntegerParam(ADStatus, ADStatusIdle);
@@ -1105,7 +1110,7 @@ asynStatus LightField::setExperimentString(String^ setting, String^ value)
 {
     static const char *functionName = "setExperimentString";
     asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
-        "%s:%s: entry, setting=%s, value=%s\n", 
+        "%s:%s: entry, setting=%s, value=%s\n",
         driverName, functionName, (CString)setting, (CString)value);
     try {
         if (!Experiment_->Exists(setting)) return asynSuccess;
@@ -1116,7 +1121,7 @@ asynStatus LightField::setExperimentString(String^ setting, String^ value)
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: setting=%s, value=%s, exception = %s\n", 
+            "%s:%s: setting=%s, value=%s, exception = %s\n",
             driverName, functionName, (CString)setting, (CString)value, pEx->ToString());
     }
     setIntegerParam(ADStatus, ADStatusIdle);
@@ -1164,7 +1169,7 @@ void LightField::pollerTask()
         }
         catch(System::Exception^ pEx) {
             asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-                "%s:%s: exception = %s\n", 
+                "%s:%s: exception = %s\n",
                 driverName, functionName, pEx->ToString());
         }
         callParamCallbacks();
@@ -1173,14 +1178,14 @@ void LightField::pollerTask()
         lock();
     }
 }
-        
+
 
 asynStatus LightField::getExperimentValue(settingMap *ps)
 {
     static const char *functionName = "getExperimentValue";
     String^ setting = ps->setting;
     CString settingName = CString(setting);
-    
+
     if (!ps->exists) return asynSuccess;
 
     asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
@@ -1194,7 +1199,7 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
             int i = gratingList_->IndexOf(value);
             if (i >= 0) setIntegerParam(ps->epicsParam, i);
         }
-        
+
         else if (ps->LFType == LFSettingROI) {
             getROI();
         }
@@ -1277,7 +1282,7 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
     }
     catch(System::Exception^ pEx) {
         asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-            "%s:%s: setting=%s, param=%d, exception = %s\n", 
+            "%s:%s: setting=%s, param=%d, exception = %s\n",
             driverName, functionName, settingName, ps->epicsParam, pEx->ToString());
         return asynError;
     }
@@ -1287,7 +1292,7 @@ asynStatus LightField::getExperimentValue(settingMap *ps)
 }
 
 
-
+
 /** Called when asyn clients call pasynInt32->write().
   * This function performs actions for some parameters, including ADAcquire, ADBinX, etc.
   * For all parameters it sets the value in the parameter library and calls any registered callbacks..
@@ -1302,28 +1307,28 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
 
     /* See if we are currently acquiring.  This must be done before the call to setIntegerParam below */
     getIntegerParam(ADAcquire, &currentlyAcquiring);
-    
+
     /* Set the parameter and readback in the parameter library.  This may be overwritten when we read back the
      * status at the end, but that's OK */
     status = setIntegerParam(function, value);
-    
+
     if (function == ADAcquire) {
         if (value && !currentlyAcquiring) {
             startAcquire();
-        } 
+        }
         if (!value && currentlyAcquiring) {
             /* This was a command to stop acquisition */
             Experiment_->Stop();
         }
-        
+
     } else if (currentlyAcquiring) {
-        asynPrint(pasynUser, ASYN_TRACE_ERROR, 
-              "%s:%s: error, attempt to change setting while acquiring, function=%d, value=%d\n", 
+        asynPrint(pasynUser, ASYN_TRACE_ERROR,
+              "%s:%s: error, attempt to change setting while acquiring, function=%d, value=%d\n",
               driverName, functionName, function, value);
-        
+
     } else if (function == NDFileNumber) {
         setFilePathAndName(false);
-        
+
     } else if ( (function == ADBinX) ||
                 (function == ADBinY) ||
                 (function == ADMinX) ||
@@ -1331,7 +1336,7 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 (function == ADSizeX) ||
                 (function == ADSizeY)) {
         this->setROI();
-        
+
     } else if ( (function == ADNumImages) ||
                 (function == ADNumExposures) ||
                 (function == LFNumAccumulations_) ||
@@ -1341,6 +1346,7 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 (function == LFGain_) ||
                 (function == LFShutterMode_) ||
                 (function == LFEntranceSideWidth_) ||
+                (function == LFEntranceFrontWidth_) ||
                 (function == LFEntranceSelected_) ||
                 (function == LFExitSelected_) ||
                 (function == LFSAGEnable_) ||
@@ -1349,8 +1355,8 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
                 (function == LFIntensifierGain_) ||
                 (function == LFGatingMode_) ||
                 (function == LFSyncMasterEnable_)) {
-        status = setExperimentInteger(function, value); 
-        
+        status = setExperimentInteger(function, value);
+
      } else if (function == LFUpdateExperiments_) {
         status = getExperimentList();
 
@@ -1360,29 +1366,29 @@ asynStatus LightField::writeInt32(asynUser *pasynUser, epicsInt32 value)
             String^ grating = list[value];
             status = setExperimentString(SpectrometerSettings::GratingSelected, grating);
         }
-        
+
     } else if (function == LFExperimentName_) {
         List<String^>^ list = experimentList_;
         if (value < list->Count) {
             String^ experimentName = list[value];
             status = openExperiment((CString)experimentName);
         }
-        
+
     } else {
         /* If this parameter belongs to a base class call its method */
         if (function < FIRST_LF_PARAM) status = ADDriver::writeInt32(pasynUser, value);
     }
-    
+
     /* Do callbacks so higher layers see any changes */
     callParamCallbacks();
-    
-    if (status) 
-        asynPrint(pasynUser, ASYN_TRACE_ERROR, 
-              "%s:%s: error, status=%d function=%d, value=%d\n", 
+
+    if (status)
+        asynPrint(pasynUser, ASYN_TRACE_ERROR,
+              "%s:%s: error, status=%d function=%d, value=%d\n",
               driverName, functionName, status, function, value);
-    else        
-        asynPrint(pasynUser, ASYN_TRACEIO_DRIVER, 
-              "%s:%s: function=%d, value=%d\n", 
+    else
+        asynPrint(pasynUser, ASYN_TRACEIO_DRIVER,
+              "%s:%s: function=%d, value=%d\n",
               driverName, functionName, function, value);
     return status;
 }
@@ -1408,14 +1414,14 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
 
     /* Changing any of the following parameters requires recomputing the base image */
     if (function == ADAcquireTime) {
-        // LightField units are ms 
+        // LightField units are ms
         value = value*1e3;
     }
     if (function == LFSyncMaster2Delay_) {
-        // LightField units are us 
+        // LightField units are us
         value = value*1e6;
     }
-    
+
     // ADAcquireTime, LFRepGateWidth, and LFRepGateDelay can be set even if we are acquiring
     if (function == ADAcquireTime)
         status = setExperimentDouble(function, value);
@@ -1425,20 +1431,20 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
         getDoubleParam(function+1, &delay);
         status = setExperimentPulse(function, value, delay);
     }
-    
+
     else if (function == LFRepGateDelay_) {
         double width;
         getDoubleParam(function-1, &width);
         status = setExperimentPulse(function-1, width, value);
-    } 
+    }
 
     if (currentlyAcquiring) {
-        asynPrint(pasynUser, ASYN_TRACE_ERROR, 
-              "%s:%s: error, attempt to change setting while acquiring, function=%d, value=%f\n", 
+        asynPrint(pasynUser, ASYN_TRACE_ERROR,
+              "%s:%s: error, attempt to change setting while acquiring, function=%d, value=%f\n",
               driverName, functionName, function, value);
         goto done;
-    } 
-    
+    }
+
     if (     (function == ADTemperature) ||
              (function == LFGratingWavelength_) ||
              (function == LFSAGStartingWavelength_) ||
@@ -1461,7 +1467,7 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
         double width;
         getDoubleParam(function-1, &width);
         status = setExperimentPulse(function-1, width, value);
-    } 
+    }
 
     done:
     /* If this parameter belongs to a base class call its method */
@@ -1469,13 +1475,13 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
 
     /* Do callbacks so higher layers see any changes */
     callParamCallbacks();
-    if (status) 
-        asynPrint(pasynUser, ASYN_TRACE_ERROR, 
-              "%s:%s, status=%d function=%d, value=%f\n", 
+    if (status)
+        asynPrint(pasynUser, ASYN_TRACE_ERROR,
+              "%s:%s, status=%d function=%d, value=%f\n",
               driverName, functionName, status, function, value);
-    else        
-        asynPrint(pasynUser, ASYN_TRACEIO_DRIVER, 
-              "%s:%s: function=%d, value=%f\n", 
+    else
+        asynPrint(pasynUser, ASYN_TRACEIO_DRIVER,
+              "%s:%s: function=%d, value=%f\n",
               driverName, functionName, function, value);
     return status;
 }
@@ -1488,7 +1494,7 @@ asynStatus LightField::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
   * \param[in] value Address of the string to write.
   * \param[in] nChars Number of characters to write.
   * \param[out] nActual Number of characters actually written. */
-asynStatus LightField::writeOctet(asynUser *pasynUser, const char *value, 
+asynStatus LightField::writeOctet(asynUser *pasynUser, const char *value,
                                     size_t nChars, size_t *nActual)
 {
     int addr=0;
@@ -1501,18 +1507,18 @@ asynStatus LightField::writeOctet(asynUser *pasynUser, const char *value,
 
     /* Set the parameter in the parameter library. */
     setStringParam(addr, function, (char *)value);
-    
+
     // If this is NDFilePath call the base class because it may need to create the directory
     if (function == NDFilePath) {
         status = ADDriver::writeOctet(pasynUser, value, nChars, nActual);
     }
 
     if (currentlyAcquiring) {
-        asynPrint(pasynUser, ASYN_TRACE_ERROR, 
-              "%s:%s: error, attempt to change setting while acquiring, function=%d, value=%s\n", 
+        asynPrint(pasynUser, ASYN_TRACE_ERROR,
+              "%s:%s: error, attempt to change setting while acquiring, function=%d, value=%s\n",
               driverName, functionName, function, value);
-    } 
-    
+    }
+
     else if ((function == NDFilePath) ||
         (function == NDFileName) ||
         (function == NDFileTemplate)) {
@@ -1532,19 +1538,19 @@ asynStatus LightField::writeOctet(asynUser *pasynUser, const char *value,
      /* Do callbacks so higher layers see any changes */
     status = (asynStatus)callParamCallbacks(addr, addr);
 
-    if (status) 
-        epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize, 
-                  "%s:%s: status=%d, function=%d, value=%s", 
+    if (status)
+        epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize,
+                  "%s:%s: status=%d, function=%d, value=%s",
                   driverName, functionName, status, function, value);
-    else        
-        asynPrint(pasynUser, ASYN_TRACEIO_DRIVER, 
-              "%s:%s: function=%d, value=%s\n", 
+    else
+        asynPrint(pasynUser, ASYN_TRACEIO_DRIVER,
+              "%s:%s: function=%d, value=%s\n",
               driverName, functionName, function, value);
     *nActual = nChars;
     return status;
 }
 
-asynStatus LightField::readEnum(asynUser *pasynUser, char *strings[], int values[], int severities[], 
+asynStatus LightField::readEnum(asynUser *pasynUser, char *strings[], int values[], int severities[],
                             size_t nElements, size_t *nIn)
 {
   int index = pasynUser->reason;
@@ -1582,13 +1588,13 @@ asynStatus LightField::readEnum(asynUser *pasynUser, char *strings[], int values
     severities[0] = 0;
     (*nIn) = 1;
   }
-  
+
   asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
       "%s:%s: exit\n", driverName, functionName);
   return asynSuccess;
 }
 
-
+
 /** Report status of the driver.
   * Prints details about the driver if details>0.
   * It then calls the ADDriver::report() method.
